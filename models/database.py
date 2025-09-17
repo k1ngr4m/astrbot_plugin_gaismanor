@@ -2,6 +2,7 @@ import sqlite3
 import os
 from typing import Optional
 from astrbot.api import logger
+from ..data.initial_data import FISH_DATA, BAIT_DATA, ROD_DATA, ACCESSORY_DATA
 
 class DatabaseManager:
     def __init__(self, db_path: str = "data/gaismanor.db"):
@@ -44,10 +45,12 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS fish_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                description TEXT,
                 rarity INTEGER NOT NULL,  -- 1-5星
                 base_value INTEGER NOT NULL,
-                description TEXT,
-                catch_rate REAL DEFAULT 1.0
+                min_weight INTEGER NOT NULL,
+                max_weight INTEGER NOT NULL,
+                icon_url TEXT
             )
         ''')
 
@@ -56,11 +59,15 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS rod_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                rarity INTEGER NOT NULL,  -- 1-5星
                 description TEXT,
-                price INTEGER NOT NULL,
-                catch_bonus REAL DEFAULT 1.0,
-                weight_bonus REAL DEFAULT 1.0
+                rarity INTEGER NOT NULL,  -- 1-5星
+                source TEXT NOT NULL,  -- shop, gacha
+                purchase_cost INTEGER,
+                quality_mod REAL DEFAULT 1.0,
+                quantity_mod REAL DEFAULT 1.0,
+                rare_mod REAL DEFAULT 0.0,
+                durability INTEGER,
+                icon_url TEXT
             )
         ''')
 
@@ -69,11 +76,15 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS accessory_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                rarity INTEGER NOT NULL,  -- 1-5星
                 description TEXT,
-                price INTEGER NOT NULL,
-                effect_type TEXT,  -- 效果类型
-                effect_value REAL  -- 效果值
+                rarity INTEGER NOT NULL,  -- 1-5星
+                slot_type TEXT NOT NULL,
+                quality_mod REAL DEFAULT 1.0,
+                quantity_mod REAL DEFAULT 1.0,
+                rare_mod REAL DEFAULT 0.0,
+                coin_mod REAL DEFAULT 1.0,
+                other_desc TEXT,
+                icon_url TEXT
             )
         ''')
 
@@ -82,11 +93,18 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS bait_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                rarity INTEGER NOT NULL,  -- 1-5星
                 description TEXT,
-                price INTEGER NOT NULL,
-                catch_rate_bonus REAL DEFAULT 1.0,
-                duration INTEGER DEFAULT 300  -- 持续时间(秒)
+                rarity INTEGER NOT NULL,  -- 1-5星
+                effect_description TEXT,
+                duration_minutes INTEGER DEFAULT 0,
+                cost INTEGER NOT NULL,
+                required_rod_rarity INTEGER DEFAULT 0,
+                success_rate_modifier REAL DEFAULT 0.0,
+                rare_chance_modifier REAL DEFAULT 0.0,
+                garbage_reduction_modifier REAL DEFAULT 0.0,
+                value_modifier REAL DEFAULT 1.0,
+                quantity_modifier REAL DEFAULT 1.0,
+                is_consumable BOOLEAN DEFAULT TRUE
             )
         ''')
 
@@ -114,6 +132,7 @@ class DatabaseManager:
                 exp INTEGER DEFAULT 0,
                 is_equipped BOOLEAN DEFAULT FALSE,
                 acquired_at INTEGER NOT NULL,
+                durability INTEGER DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES users (user_id),
                 FOREIGN KEY (rod_template_id) REFERENCES rod_templates (id)
             )
@@ -268,7 +287,55 @@ class DatabaseManager:
 
         conn.commit()
         conn.close()
+
+        # 初始化基础数据
+        self._init_base_data()
         logger.info("数据库初始化完成")
+
+    def _init_base_data(self):
+        """初始化基础数据"""
+        # 检查是否已有数据
+        fish_count = self.fetch_one("SELECT COUNT(*) as count FROM fish_templates")
+        if fish_count and fish_count['count'] > 0:
+            return
+
+        # 插入鱼类数据
+        for fish in FISH_DATA:
+            self.execute_query(
+                """INSERT INTO fish_templates
+                   (name, description, rarity, base_value, min_weight, max_weight, icon_url)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                fish
+            )
+
+        # 插入鱼竿数据
+        for rod in ROD_DATA:
+            self.execute_query(
+                """INSERT INTO rod_templates
+                   (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, icon_url)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                rod
+            )
+
+        # 插入饰品数据
+        for accessory in ACCESSORY_DATA:
+            self.execute_query(
+                """INSERT INTO accessory_templates
+                   (name, description, rarity, slot_type, quality_mod, quantity_mod, rare_mod, coin_mod, other_desc, icon_url)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                accessory
+            )
+
+        # 插入鱼饵数据
+        for bait in BAIT_DATA:
+            self.execute_query(
+                """INSERT INTO bait_templates
+                   (name, description, rarity, effect_description, duration_minutes, cost, required_rod_rarity,
+                    success_rate_modifier, rare_chance_modifier, garbage_reduction_modifier,
+                    value_modifier, quantity_modifier, is_consumable)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                bait
+            )
 
     def execute_query(self, query: str, params: tuple = ()):
         """执行查询语句"""

@@ -1,4 +1,4 @@
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent
 from astrbot.api import logger
 from ..services.user_service import UserService
 from ..services.fishing_service import FishingService
@@ -56,10 +56,10 @@ class UserCommands:
 """
 
         if equipped_rod:
-            status_info += f"\n装备鱼竿: {equipped_rod.name}(+{equipped_rod.catch_bonus}捕获率, +{equipped_rod.weight_bonus}重量)"
+            status_info += f"\n装备鱼竿: {equipped_rod.name}(+{equipped_rod.quality_mod}品质, +{equipped_rod.quantity_mod}数量)"
 
         if equipped_accessory:
-            status_info += f"\n装备饰品: {equipped_accessory.name}(+{equipped_accessory.effect_value}{equipped_accessory.effect_type})"
+            status_info += f"\n装备饰品: {equipped_accessory.name}(+{equipped_accessory.quality_mod}品质, +{equipped_accessory.coin_mod}金币)"
 
         yield event.plain_result(status_info)
 
@@ -129,8 +129,8 @@ class UserCommands:
 
         yield event.plain_result(f"签到成功！\n获得金币: {reward_gold}枚\n连续签到: {streak}天")
 
-    async def inventory_command(self, event: AstrMessageEvent):
-        """查看背包命令"""
+    async def gold_command(self, event: AstrMessageEvent):
+        """查看金币命令"""
         user_id = event.get_sender_id()
         user = self.user_service.get_user(user_id)
 
@@ -138,60 +138,4 @@ class UserCommands:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
-        # 获取鱼类库存
-        fish_inventory = self.user_service.get_user_fish_inventory(user_id)
-
-        # 获取装备库存
-        rods = self.equipment_service.get_user_rods(user_id)
-        accessories = self.equipment_service.get_user_accessories(user_id)
-        bait = self.equipment_service.get_user_bait(user_id)
-
-        # 构建背包信息
-        inventory_info = f"=== {user.nickname} 的背包 ===\n\n"
-
-        # 鱼类库存
-        if fish_inventory:
-            inventory_info += "🐟 鱼类库存:\n"
-            for fish in fish_inventory:
-                fish_template = self.db_manager.fetch_one(
-                    "SELECT name FROM fish_templates WHERE id = ?",
-                    (fish.fish_template_id,)
-                )
-                if fish_template:
-                    inventory_info += f"  • {fish_template['name']} - {fish.weight:.2f}kg - {fish.value}金币\n"
-        else:
-            inventory_info += "🐟 鱼类库存: 暂无\n"
-
-        inventory_info += "\n"
-
-        # 鱼竿库存
-        if rods:
-            inventory_info += "🎣 鱼竿库存:\n"
-            for rod in rods:
-                equip_status = " [装备中]" if rod.is_equipped else ""
-                inventory_info += f"  • {rod.name}(+{rod.catch_bonus}捕获率) - 等级:{rod.level}{equip_status}\n"
-        else:
-            inventory_info += "🎣 鱼竿库存: 暂无\n"
-
-        inventory_info += "\n"
-
-        # 饰品库存
-        if accessories:
-            inventory_info += "💎 饰品库存:\n"
-            for accessory in accessories:
-                equip_status = " [装备中]" if accessory.is_equipped else ""
-                inventory_info += f"  • {accessory.name}(+{accessory.effect_value}{accessory.effect_type}){equip_status}\n"
-        else:
-            inventory_info += "💎 饰品库存: 暂无\n"
-
-        inventory_info += "\n"
-
-        # 鱼饵库存
-        if bait:
-            inventory_info += "🍖 鱼饵库存:\n"
-            for b in bait:
-                inventory_info += f"  • {b.name}(+{b.catch_rate_bonus}捕获率) - 持续:{b.duration}秒\n"
-        else:
-            inventory_info += "🍖 鱼饵库存: 暂无\n"
-
-        yield event.plain_result(inventory_info)
+        yield event.plain_result(f"您的金币余额: {user.gold}枚")

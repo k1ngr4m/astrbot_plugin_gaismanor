@@ -11,7 +11,7 @@ class EquipmentService:
     def get_user_rods(self, user_id: str) -> List[Rod]:
         """获取用户所有鱼竿"""
         results = self.db.fetch_all(
-            """SELECT rt.*, uri.level, uri.exp FROM user_rod_instances uri
+            """SELECT rt.*, uri.level, uri.exp, uri.is_equipped, uri.durability FROM user_rod_instances uri
                JOIN rod_templates rt ON uri.rod_template_id = rt.id
                WHERE uri.user_id = ?""",
             (user_id,)
@@ -22,18 +22,20 @@ class EquipmentService:
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_bonus=row['catch_bonus'],
-                weight_bonus=row['weight_bonus'],
+                price=row['purchase_cost'] or 0,
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                durability=row['durability'] or 0,
                 level=row['level'],
-                exp=row['exp']
+                exp=row['exp'],
+                is_equipped=bool(row['is_equipped'])
             ) for row in results
         ]
 
     def get_user_accessories(self, user_id: str) -> List[Accessory]:
         """获取用户所有饰品"""
         results = self.db.fetch_all(
-            """SELECT at.* FROM user_accessory_instances uai
+            """SELECT at.*, uai.is_equipped FROM user_accessory_instances uai
                JOIN accessory_templates at ON uai.accessory_template_id = at.id
                WHERE uai.user_id = ?""",
             (user_id,)
@@ -44,9 +46,12 @@ class EquipmentService:
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                effect_type=row['effect_type'],
-                effect_value=row['effect_value']
+                price=100,  # 默认价格
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                coin_mod=row['coin_mod'],
+                other_desc=row['other_desc'],
+                is_equipped=bool(row['is_equipped'])
             ) for row in results
         ]
 
@@ -64,9 +69,16 @@ class EquipmentService:
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_rate_bonus=row['catch_rate_bonus'],
-                duration=row['duration']
+                price=row['cost'],
+                effect_description=row['effect_description'],
+                duration_minutes=row['duration_minutes'],
+                success_rate_modifier=row['success_rate_modifier'],
+                rare_chance_modifier=row['rare_chance_modifier'],
+                garbage_reduction_modifier=row['garbage_reduction_modifier'],
+                value_modifier=row['value_modifier'],
+                quantity_modifier=row['quantity_modifier'],
+                is_consumable=bool(row['is_consumable']),
+                quantity=row['quantity']
             ) for row in results
         ]
 
@@ -119,7 +131,7 @@ class EquipmentService:
     def get_equipped_rod(self, user_id: str) -> Optional[Rod]:
         """获取用户装备的鱼竿"""
         result = self.db.fetch_one(
-            """SELECT rt.*, uri.level, uri.exp FROM user_rod_instances uri
+            """SELECT rt.*, uri.level, uri.exp, uri.is_equipped, uri.durability FROM user_rod_instances uri
                JOIN rod_templates rt ON uri.rod_template_id = rt.id
                WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
             (user_id,)
@@ -130,18 +142,20 @@ class EquipmentService:
                 name=result['name'],
                 rarity=result['rarity'],
                 description=result['description'],
-                price=result['price'],
-                catch_bonus=result['catch_bonus'],
-                weight_bonus=result['weight_bonus'],
+                price=result['purchase_cost'] or 0,
+                quality_mod=result['quality_mod'],
+                quantity_mod=result['quantity_mod'],
+                durability=result['durability'] or 0,
                 level=result['level'],
-                exp=result['exp']
+                exp=result['exp'],
+                is_equipped=bool(result['is_equipped'])
             )
         return None
 
     def get_equipped_accessory(self, user_id: str) -> Optional[Accessory]:
         """获取用户装备的饰品"""
         result = self.db.fetch_one(
-            """SELECT at.* FROM user_accessory_instances uai
+            """SELECT at.*, uai.is_equipped FROM user_accessory_instances uai
                JOIN accessory_templates at ON uai.accessory_template_id = at.id
                WHERE uai.user_id = ? AND uai.is_equipped = TRUE""",
             (user_id,)
@@ -152,8 +166,11 @@ class EquipmentService:
                 name=result['name'],
                 rarity=result['rarity'],
                 description=result['description'],
-                price=result['price'],
-                effect_type=result['effect_type'],
-                effect_value=result['effect_value']
+                price=100,  # 默认价格
+                quality_mod=result['quality_mod'],
+                quantity_mod=result['quantity_mod'],
+                coin_mod=result['coin_mod'],
+                other_desc=result['other_desc'],
+                is_equipped=bool(result['is_equipped'])
             )
         return None

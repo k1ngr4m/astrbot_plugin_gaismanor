@@ -11,16 +11,17 @@ class ShopService:
 
     def get_rod_shop_items(self) -> List[Rod]:
         """获取鱼竿商店商品"""
-        results = self.db.fetch_all("SELECT * FROM rod_templates")
+        results = self.db.fetch_all("SELECT * FROM rod_templates WHERE source = 'shop'")
         return [
             Rod(
                 id=row['id'],
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_bonus=row['catch_bonus'],
-                weight_bonus=row['weight_bonus']
+                price=row['purchase_cost'] or 0,
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                durability=row['durability'] or 0
             ) for row in results
         ]
 
@@ -33,9 +34,11 @@ class ShopService:
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                effect_type=row['effect_type'],
-                effect_value=row['effect_value']
+                price=100,  # 默认价格，实际应从配置中获取
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                coin_mod=row['coin_mod'],
+                other_desc=row['other_desc']
             ) for row in results
         ]
 
@@ -48,9 +51,15 @@ class ShopService:
                 name=row['name'],
                 rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_rate_bonus=row['catch_rate_bonus'],
-                duration=row['duration']
+                price=row['cost'],
+                effect_description=row['effect_description'],
+                duration_minutes=row['duration_minutes'],
+                success_rate_modifier=row['success_rate_modifier'],
+                rare_chance_modifier=row['rare_chance_modifier'],
+                garbage_reduction_modifier=row['garbage_reduction_modifier'],
+                value_modifier=row['value_modifier'],
+                quantity_modifier=row['quantity_modifier'],
+                is_consumable=row['is_consumable']
             ) for row in results
         ]
 
@@ -69,21 +78,21 @@ class ShopService:
             "SELECT gold FROM users WHERE user_id = ?",
             (user_id,)
         )
-        if not user or user['gold'] < rod_template['price']:
+        if not user or user['gold'] < (rod_template['purchase_cost'] or 0):
             return False
 
         # 扣除金币
         self.db.execute_query(
             "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (rod_template['price'], user_id)
+            (rod_template['purchase_cost'], user_id)
         )
 
         # 添加到用户鱼竿库存
         self.db.execute_query(
             """INSERT INTO user_rod_instances
-               (user_id, rod_template_id, level, exp, is_equipped, acquired_at)
-               VALUES (?, ?, 1, 0, FALSE, ?)""",
-            (user_id, rod_template_id, int(time.time()))
+               (user_id, rod_template_id, level, exp, is_equipped, acquired_at, durability)
+               VALUES (?, ?, 1, 0, FALSE, ?, ?)""",
+            (user_id, rod_template_id, int(time.time()), rod_template['durability'] or 0)
         )
 
         return True
@@ -98,18 +107,18 @@ class ShopService:
         if not accessory_template:
             return False
 
-        # 检查用户金币是否足够
+        # 检查用户金币是否足够 (默认价格100金币)
         user = self.db.fetch_one(
             "SELECT gold FROM users WHERE user_id = ?",
             (user_id,)
         )
-        if not user or user['gold'] < accessory_template['price']:
+        if not user or user['gold'] < 100:
             return False
 
         # 扣除金币
         self.db.execute_query(
             "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (accessory_template['price'], user_id)
+            (100, user_id)
         )
 
         # 添加到用户饰品库存
@@ -133,7 +142,7 @@ class ShopService:
             return False
 
         # 计算总价
-        total_price = bait_template['price'] * quantity
+        total_price = bait_template['cost'] * quantity
 
         # 检查用户金币是否足够
         user = self.db.fetch_one(
@@ -205,7 +214,7 @@ class ShopService:
         """出售鱼竿"""
         # 获取鱼竿信息
         rod_instance = self.db.fetch_one(
-            """SELECT uri.*, rt.price FROM user_rod_instances uri
+            """SELECT uri.*, rt.purchase_cost FROM user_rod_instances uri
                JOIN rod_templates rt ON uri.rod_template_id = rt.id
                WHERE uri.user_id = ? AND uri.id = ?""",
             (user_id, rod_instance_id)
@@ -218,7 +227,7 @@ class ShopService:
             return False
 
         # 计算出售价格 (按原价的50%)
-        sell_price = int(rod_instance['price'] * 0.5)
+        sell_price = int((rod_instance['purchase_cost'] or 0) * 0.5)
 
         # 添加金币
         self.db.execute_query(
@@ -238,7 +247,7 @@ class ShopService:
         """出售饰品"""
         # 获取饰品信息
         accessory_instance = self.db.fetch_one(
-            """SELECT uai.*, at.price FROM user_accessory_instances uai
+            """SELECT uai.* FROM user_accessory_instances uai
                JOIN accessory_templates at ON uai.accessory_template_id = at.id
                WHERE uai.user_id = ? AND uai.id = ?""",
             (user_id, accessory_instance_id)
@@ -251,7 +260,7 @@ class ShopService:
             return False
 
         # 计算出售价格 (按原价的50%)
-        sell_price = int(accessory_instance['price'] * 0.5)
+        sell_price = 50  # 默认售价
 
         # 添加金币
         self.db.execute_query(

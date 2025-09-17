@@ -8,87 +8,6 @@ import time
 class FishingService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
-        self._init_fish_templates()
-        self._init_equipment_templates()
-
-    def _init_fish_templates(self):
-        """初始化鱼类模板数据"""
-        # 检查是否已有数据
-        result = self.db.fetch_one("SELECT COUNT(*) as count FROM fish_templates")
-        if result and result['count'] > 0:
-            return
-
-        # 插入默认鱼类模板
-        fish_data = [
-            ("小鲫鱼", 1, 10, "常见的小鲫鱼", 0.8),
-            ("草鱼", 2, 25, "普通的草鱼", 0.6),
-            ("鲤鱼", 2, 30, "金色的鲤鱼", 0.5),
-            ("鲈鱼", 3, 50, "鲜美的鲈鱼", 0.4),
-            ("石斑鱼", 3, 70, "海中的石斑鱼", 0.3),
-            ("金枪鱼", 4, 120, "珍贵的金枪鱼", 0.2),
-            ("鲨鱼", 5, 200, "凶猛的鲨鱼", 0.1),
-        ]
-
-        for name, rarity, base_value, description, catch_rate in fish_data:
-            self.db.execute_query(
-                "INSERT INTO fish_templates (name, rarity, base_value, description, catch_rate) VALUES (?, ?, ?, ?, ?)",
-                (name, rarity, base_value, description, catch_rate)
-            )
-
-    def _init_equipment_templates(self):
-        """初始化装备模板数据"""
-        # 检查是否已有鱼竿数据
-        result = self.db.fetch_one("SELECT COUNT(*) as count FROM rod_templates")
-        if not result or result['count'] == 0:
-            # 插入默认鱼竿模板
-            rod_data = [
-                ("新手鱼竿", 1, "刚入门的鱼竿", 50, 1.0, 1.0),
-                ("中级鱼竿", 2, "进阶钓鱼者的鱼竿", 150, 1.2, 1.1),
-                ("高级鱼竿", 3, "专业钓鱼者的鱼竿", 300, 1.5, 1.3),
-                ("专家鱼竿", 4, "大师级鱼竿", 600, 2.0, 1.5),
-                ("传说鱼竿", 5, "传说中的神竿", 1200, 3.0, 2.0),
-            ]
-
-            for name, rarity, description, price, catch_bonus, weight_bonus in rod_data:
-                self.db.execute_query(
-                    "INSERT INTO rod_templates (name, rarity, description, price, catch_bonus, weight_bonus) VALUES (?, ?, ?, ?, ?, ?)",
-                    (name, rarity, description, price, catch_bonus, weight_bonus)
-                )
-
-        # 检查是否已有饰品数据
-        result = self.db.fetch_one("SELECT COUNT(*) as count FROM accessory_templates")
-        if not result or result['count'] == 0:
-            # 插入默认饰品模板
-            accessory_data = [
-                ("幸运吊坠", 2, "增加钓鱼幸运度", 100, "catch_rate", 0.1),
-                ("力量手套", 3, "增加鱼竿力量", 200, "weight_bonus", 0.2),
-                ("海洋之心", 4, "海洋的神秘力量", 500, "rare_fish_bonus", 0.15),
-                ("海神之眼", 5, "洞察深海的宝物", 1000, "legendary_fish_bonus", 0.25),
-            ]
-
-            for name, rarity, description, price, effect_type, effect_value in accessory_data:
-                self.db.execute_query(
-                    "INSERT INTO accessory_templates (name, rarity, description, price, effect_type, effect_value) VALUES (?, ?, ?, ?, ?, ?)",
-                    (name, rarity, description, price, effect_type, effect_value)
-                )
-
-        # 检查是否已有鱼饵数据
-        result = self.db.fetch_one("SELECT COUNT(*) as count FROM bait_templates")
-        if not result or result['count'] == 0:
-            # 插入默认鱼饵模板
-            bait_data = [
-                ("普通鱼饵", 1, "普通的鱼饵", 20, 1.2, 300),
-                ("高级鱼饵", 2, "效果更好的鱼饵", 50, 1.5, 600),
-                ("超级鱼饵", 3, "吸引力极强的鱼饵", 100, 2.0, 900),
-                ("神秘鱼饵", 4, "来自深海的神秘鱼饵", 200, 2.5, 1200),
-                ("传说鱼饵", 5, "传说中的鱼饵", 500, 3.0, 1800),
-            ]
-
-            for name, rarity, description, price, catch_rate_bonus, duration in bait_data:
-                self.db.execute_query(
-                    "INSERT INTO bait_templates (name, rarity, description, price, catch_rate_bonus, duration) VALUES (?, ?, ?, ?, ?, ?)",
-                    (name, rarity, description, price, catch_rate_bonus, duration)
-                )
 
     def get_fish_templates(self) -> List[FishTemplate]:
         """获取所有鱼类模板"""
@@ -97,10 +16,12 @@ class FishingService:
             FishTemplate(
                 id=row['id'],
                 name=row['name'],
+                description=row['description'],
                 rarity=row['rarity'],
                 base_value=row['base_value'],
-                description=row['description'],
-                catch_rate=row['catch_rate']
+                min_weight=row['min_weight'],
+                max_weight=row['max_weight'],
+                icon_url=row['icon_url']
             ) for row in results
         ]
 
@@ -111,11 +32,15 @@ class FishingService:
             RodTemplate(
                 id=row['id'],
                 name=row['name'],
-                rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_bonus=row['catch_bonus'],
-                weight_bonus=row['weight_bonus']
+                rarity=row['rarity'],
+                source=row['source'],
+                purchase_cost=row['purchase_cost'],
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                rare_mod=row['rare_mod'],
+                durability=row['durability'],
+                icon_url=row['icon_url']
             ) for row in results
         ]
 
@@ -126,11 +51,15 @@ class FishingService:
             AccessoryTemplate(
                 id=row['id'],
                 name=row['name'],
-                rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                effect_type=row['effect_type'],
-                effect_value=row['effect_value']
+                rarity=row['rarity'],
+                slot_type=row['slot_type'],
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                rare_mod=row['rare_mod'],
+                coin_mod=row['coin_mod'],
+                other_desc=row['other_desc'],
+                icon_url=row['icon_url']
             ) for row in results
         ]
 
@@ -141,11 +70,18 @@ class FishingService:
             BaitTemplate(
                 id=row['id'],
                 name=row['name'],
-                rarity=row['rarity'],
                 description=row['description'],
-                price=row['price'],
-                catch_rate_bonus=row['catch_rate_bonus'],
-                duration=row['duration']
+                rarity=row['rarity'],
+                effect_description=row['effect_description'],
+                duration_minutes=row['duration_minutes'],
+                cost=row['cost'],
+                required_rod_rarity=row['required_rod_rarity'],
+                success_rate_modifier=row['success_rate_modifier'],
+                rare_chance_modifier=row['rare_chance_modifier'],
+                garbage_reduction_modifier=row['garbage_reduction_modifier'],
+                value_modifier=row['value_modifier'],
+                quantity_modifier=row['quantity_modifier'],
+                is_consumable=row['is_consumable']
             ) for row in results
         ]
 
@@ -183,9 +119,9 @@ class FishingService:
         # 计算钓鱼成功率加成
         catch_rate_bonus = 1.0
         if equipped_rod:
-            catch_rate_bonus *= equipped_rod.catch_bonus
-        if equipped_accessory and equipped_accessory.effect_type == "catch_rate":
-            catch_rate_bonus *= (1 + equipped_accessory.effect_value)
+            catch_rate_bonus *= equipped_rod.quality_mod
+        if equipped_accessory and equipped_accessory.quality_mod:
+            catch_rate_bonus *= equipped_accessory.quality_mod
 
         # 随机决定是否钓到鱼 (基础成功率50%)
         base_catch_rate = 0.5
@@ -201,19 +137,13 @@ class FishingService:
             return FishingResult(success=False, message="暂无鱼类数据")
 
         # 根据稀有度权重选择鱼类
-        weights = [fish.catch_rate for fish in fish_templates]
+        # 稀有度越高，权重越低（越难钓到）
+        weights = [1.0 / (fish.rarity ** 2) for fish in fish_templates]
         caught_fish = random.choices(fish_templates, weights=weights)[0]
 
         # 计算鱼的重量和价值
-        base_weight = random.uniform(0.5, 5.0)
-        weight_bonus = 1.0
-        if equipped_rod:
-            weight_bonus *= equipped_rod.weight_bonus
-        if equipped_accessory and equipped_accessory.effect_type == "weight_bonus":
-            weight_bonus *= (1 + equipped_accessory.effect_value)
-
-        final_weight = base_weight * weight_bonus
-        final_value = int(caught_fish.base_value * (final_weight / 2.0))
+        final_weight = random.uniform(caught_fish.min_weight / 1000.0, caught_fish.max_weight / 1000.0)
+        final_value = int(caught_fish.base_value * (final_weight * 2))
 
         # 添加到用户鱼类库存
         self.db.execute_query(
@@ -252,11 +182,15 @@ class FishingService:
             return RodTemplate(
                 id=result['id'],
                 name=result['name'],
-                rarity=result['rarity'],
                 description=result['description'],
-                price=result['price'],
-                catch_bonus=result['catch_bonus'],
-                weight_bonus=result['weight_bonus']
+                rarity=result['rarity'],
+                source=result['source'],
+                purchase_cost=result['purchase_cost'],
+                quality_mod=result['quality_mod'],
+                quantity_mod=result['quantity_mod'],
+                rare_mod=result['rare_mod'],
+                durability=result['durability'],
+                icon_url=result['icon_url']
             )
         return None
 
@@ -272,10 +206,14 @@ class FishingService:
             return AccessoryTemplate(
                 id=result['id'],
                 name=result['name'],
-                rarity=result['rarity'],
                 description=result['description'],
-                price=result['price'],
-                effect_type=result['effect_type'],
-                effect_value=result['effect_value']
+                rarity=result['rarity'],
+                slot_type=result['slot_type'],
+                quality_mod=result['quality_mod'],
+                quantity_mod=result['quantity_mod'],
+                rare_mod=result['rare_mod'],
+                coin_mod=result['coin_mod'],
+                other_desc=result['other_desc'],
+                icon_url=result['icon_url']
             )
         return None
