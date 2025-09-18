@@ -38,9 +38,9 @@ class GaismanorPlugin(Star):
         """启动WebUI"""
         try:
             from .webui import start_webui
-            webui_thread = threading.Thread(target=start_webui, daemon=True)
+            webui_thread = threading.Thread(target=start_webui, args=(self.port,), daemon=True)
             webui_thread.start()
-            logger.info("庄园插件WebUI已启动，访问地址: http://localhost:6200")
+            logger.info(f"庄园插件WebUI已启动，访问地址: http://localhost:{self.port}")
         except Exception as e:
             logger.error(f"启动WebUI失败: {e}")
 
