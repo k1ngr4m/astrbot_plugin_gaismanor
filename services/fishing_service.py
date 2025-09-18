@@ -1,4 +1,6 @@
 from typing import Optional, List, Tuple
+
+from astrbot import logger
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate, FishingResult
 from ..models.database import DatabaseManager
@@ -246,4 +248,4 @@ class FishingService:
         result = self.fish(user)
 
         # 返回结果
-        yield result.message
+        yield event.plain_result(result.message)
