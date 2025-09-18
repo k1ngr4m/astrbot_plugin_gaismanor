@@ -10,50 +10,66 @@ import time
 class GachaService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
-        # 定义抽卡概率 (星级: 概率)
-        self.rarity_weights = {
-            1: 50,  # 50% 概率获得1星物品
-            2: 30,  # 30% 概率获得2星物品
-            3: 15,  # 15% 概率获得3星物品
-            4: 4,   # 4% 概率获得4星物品
-            5: 1    # 1% 概率获得5星物品
-        }
+        # 从数据库加载卡池数据
+        self.gacha_pools = self._load_gacha_pools()
 
-        # 定义卡池 (不同类型物品的抽卡池)
-        self.gacha_pools = {
-            1: {  # 普通卡池
-                "name": "普通卡池",
-                "description": "包含各种基础装备和物品",
-                "items": {
-                    "rod": [1, 2, 3],      # 1-3星鱼竿ID
-                    "accessory": [1, 2],   # 1-2星饰品ID
-                    "bait": [1, 2, 3]      # 1-3星鱼饵ID
-                }
-            },
-            2: {  # 高级卡池
-                "name": "高级卡池",
-                "description": "包含稀有装备和物品",
-                "items": {
-                    "rod": [2, 3, 4],      # 2-4星鱼竿ID
-                    "accessory": [2, 3],   # 2-3星饰品ID
-                    "bait": [2, 3, 4]      # 2-4星鱼饵ID
-                }
-            },
-            3: {  # 限定卡池
-                "name": "限定卡池",
-                "description": "包含限定稀有装备",
-                "items": {
-                    "rod": [3, 4, 5],      # 3-5星鱼竿ID
-                    "accessory": [3, 4],   # 3-4星饰品ID
-                    "bait": [3, 4, 5]      # 3-5星鱼饵ID
-                }
+    def _load_gacha_pools(self):
+        """从数据库加载卡池数据"""
+        pools = {}
+
+        # 获取所有卡池
+        pool_records = self.db.fetch_all("SELECT * FROM gacha_pools WHERE enabled = TRUE ORDER BY sort_order, id")
+
+        for pool_record in pool_records:
+            pool_id = pool_record['id']
+
+            # 获取卡池稀有度权重
+            rarity_weights = {}
+            weights = self.db.fetch_all(
+                "SELECT rarity, weight FROM gacha_pool_rarity_weights WHERE pool_id = ?",
+                (pool_id,)
+            )
+            for weight in weights:
+                rarity_weights[weight['rarity']] = weight['weight']
+
+            # 获取卡池中的物品
+            items = self.db.fetch_all(
+                "SELECT item_type, item_template_id FROM gacha_pool_items WHERE pool_id = ?",
+                (pool_id,)
+            )
+
+            # 按类型分组物品ID
+            items_dict = {"rod": [], "accessory": [], "bait": []}
+            for item in items:
+                item_type = item['item_type']
+                if item_type in items_dict:
+                    items_dict[item_type].append(item['item_template_id'])
+
+            pools[pool_id] = {
+                "name": pool_record['name'],
+                "description": pool_record['description'],
+                "items": items_dict,
+                "rarity_weights": rarity_weights
             }
-        }
 
-    def get_rarity(self) -> int:
+        return pools
+
+    def get_rarity(self, pool_id: int) -> int:
         """根据权重随机获取稀有度"""
-        rarities = list(self.rarity_weights.keys())
-        weights = list(self.rarity_weights.values())
+        if pool_id not in self.gacha_pools:
+            # 如果卡池不存在，使用默认权重
+            rarity_weights = {
+                1: 50,  # 50% 概率获得1星物品
+                2: 30,  # 30% 概率获得2星物品
+                3: 15,  # 15% 概率获得3星物品
+                4: 4,   # 4% 概率获得4星物品
+                5: 1    # 1% 概率获得5星物品
+            }
+        else:
+            rarity_weights = self.gacha_pools[pool_id]["rarity_weights"]
+
+        rarities = list(rarity_weights.keys())
+        weights = list(rarity_weights.values())
         return random.choices(rarities, weights=weights)[0]
 
     def get_random_item(self, pool_id: int, item_type: str, rarity: int) -> Optional[int]:

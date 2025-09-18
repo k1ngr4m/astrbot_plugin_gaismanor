@@ -403,6 +403,93 @@ def get_bait_data():
         })
     return jsonify(bait_list)
 
+# 卡池数据路由
+@app.route('/gacha_pools')
+@login_required
+def gacha_pool_data():
+    """卡池数据页面"""
+    return render_template('gacha_pool_data.html')
+
+@app.route('/api/gacha_pools', methods=['GET'])
+@login_required
+def get_gacha_pools():
+    """获取所有卡池数据"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    # 从数据库获取卡池数据
+    pools = db_manager.fetch_all("SELECT * FROM gacha_pools ORDER BY sort_order, id")
+    pool_list = []
+
+    for pool in pools:
+        # 获取卡池稀有度权重
+        rarity_weights = {}
+        weights = db_manager.fetch_all(
+            "SELECT rarity, weight FROM gacha_pool_rarity_weights WHERE pool_id = ?",
+            (pool['id'],)
+        )
+        for weight in weights:
+            rarity_weights[weight['rarity']] = weight['weight']
+
+        # 获取卡池中的物品
+        items = db_manager.fetch_all(
+            "SELECT item_type, item_template_id, rarity FROM gacha_pool_items WHERE pool_id = ?",
+            (pool['id'],)
+        )
+
+        # 按类型分组物品
+        items_detail = {}
+        for item in items:
+            item_type = item['item_type']
+            if item_type not in items_detail:
+                items_detail[item_type] = []
+
+            # 获取物品详情
+            if item_type == "rod":
+                item_detail = db_manager.fetch_one(
+                    "SELECT id, name, rarity FROM rod_templates WHERE id = ?",
+                    (item['item_template_id'],)
+                )
+            elif item_type == "accessory":
+                item_detail = db_manager.fetch_one(
+                    "SELECT id, name, rarity FROM accessory_templates WHERE id = ?",
+                    (item['item_template_id'],)
+                )
+            elif item_type == "bait":
+                item_detail = db_manager.fetch_one(
+                    "SELECT id, name, rarity FROM bait_templates WHERE id = ?",
+                    (item['item_template_id'],)
+                )
+            else:
+                continue
+
+            if item_detail:
+                items_detail[item_type].append({
+                    'id': item_detail['id'],
+                    'name': item_detail['name'],
+                    'rarity': item_detail['rarity']
+                })
+
+        pool_list.append({
+            'id': pool['id'],
+            'name': pool['name'],
+            'description': pool['description'],
+            'cost_coins': pool['cost_coins'],
+            'cost_premium_currency': pool['cost_premium_currency'],
+            'items': items_detail,
+            'rarity_weights': rarity_weights
+        })
+
+    return jsonify(pool_list)
+
+@app.route('/api/gacha_pools/<int:pool_id>', methods=['PUT'])
+@login_required
+def update_gacha_pool(pool_id):
+    """更新卡池"""
+    # 注意：在实际应用中，卡池配置通常存储在数据库中
+    # 这里我们只是返回一个示例响应
+    return jsonify({'message': '卡池更新功能将在后续版本中实现'}), 200
+
 def start_webui(port):
     """启动WebUI"""
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)

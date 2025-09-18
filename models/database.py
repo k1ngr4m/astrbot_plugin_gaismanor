@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import time
 from typing import Optional
 from astrbot.api import logger
 from ..data.initial_data import FISH_DATA, BAIT_DATA, ROD_DATA, ACCESSORY_DATA
@@ -286,6 +287,48 @@ class DatabaseManager:
             )
         ''')
 
+        # 卡池表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS gacha_pools (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                cost_coins INTEGER DEFAULT 0,
+                cost_premium_currency INTEGER DEFAULT 0,
+                enabled BOOLEAN DEFAULT TRUE,
+                sort_order INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+        ''')
+
+        # 卡池物品关联表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS gacha_pool_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pool_id INTEGER NOT NULL,
+                item_type TEXT NOT NULL,  -- 'rod', 'accessory', 'bait'
+                item_template_id INTEGER NOT NULL,
+                rarity INTEGER NOT NULL,
+                weight INTEGER DEFAULT 100,  -- 权重，用于概率计算
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (pool_id) REFERENCES gacha_pools (id)
+            )
+        ''')
+
+        # 卡池稀有度概率表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS gacha_pool_rarity_weights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pool_id INTEGER NOT NULL,
+                rarity INTEGER NOT NULL,  -- 1-5星
+                weight INTEGER NOT NULL,  -- 概率权重
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (pool_id) REFERENCES gacha_pools (id),
+                UNIQUE(pool_id, rarity)
+            )
+        ''')
+
         conn.commit()
         conn.close()
 
@@ -337,6 +380,43 @@ class DatabaseManager:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 bait
             )
+
+        # 插入卡池数据
+        from ..data.initial_data import GACHA_POOL_DATA, GACHA_POOL_RARITY_WEIGHTS, GACHA_POOL_ITEMS
+        current_time = int(time.time())
+
+        # 插入卡池基本信息
+        for pool_data in GACHA_POOL_DATA:
+            self.execute_query(
+                """INSERT INTO gacha_pools
+                   (name, description, cost_coins, cost_premium_currency, enabled, sort_order, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                pool_data + (True, 0, current_time, current_time)
+            )
+
+            # 获取刚插入的卡池ID
+            pool_result = self.fetch_one("SELECT id FROM gacha_pools WHERE name = ?", (pool_data[0],))
+            if pool_result:
+                pool_id = pool_result['id']
+
+                # 插入卡池稀有度权重
+                for rarity, weight in GACHA_POOL_RARITY_WEIGHTS.items():
+                    self.execute_query(
+                        """INSERT INTO gacha_pool_rarity_weights
+                           (pool_id, rarity, weight, created_at)
+                           VALUES (?, ?, ?, ?)""",
+                        (pool_id, rarity, weight, current_time)
+                    )
+
+                # 插入卡池物品
+                for item_config in GACHA_POOL_ITEMS:
+                    if item_config[0] == pool_data[0]:  # 匹配卡池名称
+                        self.execute_query(
+                            """INSERT INTO gacha_pool_items
+                               (pool_id, item_type, item_template_id, rarity, weight, created_at)
+                               VALUES (?, ?, ?, ?, ?, ?)""",
+                            (pool_id, item_config[1], item_config[2], item_config[3], 100, current_time)
+                        )
 
     def execute_query(self, query: str, params: tuple = ()):
         """执行查询语句"""
