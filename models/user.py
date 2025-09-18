@@ -16,6 +16,8 @@ class User:
     total_income: int = 0   # 总收入
     last_fishing_time: int = 0  # 上次钓鱼时间
     auto_fishing: bool = False  # 是否开启自动钓鱼
+    total_fishing_count: int = 0  # 总钓鱼次数
+    total_coins_earned: int = 0  # 累计获得的金币数
     created_at: int = field(default_factory=lambda: int(time.time()))
     updated_at: int = field(default_factory=lambda: int(time.time()))
 

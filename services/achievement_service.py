@@ -65,11 +65,15 @@ class AchievementService:
         ) else 0
 
         # 获取用户获得的最大擦弹倍率 (假设在fishing_logs中存储)
-        max_wipe_result = self.db.fetch_one(
-            "SELECT MAX(wipe_multiplier) as max_multiplier FROM fishing_logs WHERE user_id = ? AND wipe_multiplier > 1",
-            (user_id,)
-        )
-        max_wipe_bomb_multiplier = max_wipe_result['max_multiplier'] if max_wipe_result and max_wipe_result['max_multiplier'] else 0.0
+        try:
+            max_wipe_result = self.db.fetch_one(
+                "SELECT MAX(wipe_multiplier) as max_multiplier FROM fishing_logs WHERE user_id = ? AND wipe_multiplier > 1",
+                (user_id,)
+            )
+            max_wipe_bomb_multiplier = max_wipe_result['max_multiplier'] if max_wipe_result and max_wipe_result['max_multiplier'] else 0.0
+        except Exception as e:
+            # 如果列不存在，返回0.0
+            max_wipe_bomb_multiplier = 0.0
 
         # 获取用户拥有的鱼竿稀有度
         rod_rarities_result = self.db.fetch_all(

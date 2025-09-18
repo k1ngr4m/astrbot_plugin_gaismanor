@@ -37,6 +37,8 @@ class DatabaseManager:
                 total_income INTEGER DEFAULT 0,
                 last_fishing_time INTEGER DEFAULT 0,
                 auto_fishing BOOLEAN DEFAULT FALSE,
+                total_fishing_count INTEGER DEFAULT 0,
+                total_coins_earned INTEGER DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             )
@@ -177,6 +179,7 @@ class DatabaseManager:
                 bait_id INTEGER,
                 success BOOLEAN NOT NULL,
                 timestamp INTEGER NOT NULL,
+                wipe_multiplier REAL DEFAULT 1.0,
                 FOREIGN KEY (user_id) REFERENCES users (user_id),
                 FOREIGN KEY (fish_template_id) REFERENCES fish_templates (id),
                 FOREIGN KEY (rod_id) REFERENCES user_rod_instances (id),
@@ -336,11 +339,50 @@ class DatabaseManager:
         self._init_base_data()
         logger.info("数据库初始化完成")
 
+    def _init_achievements_and_titles(self):
+        """初始化成就和称号数据"""
+        from ..data.initial_data import ACHIEVEMENT_DATA, TITLE_DATA
+
+        # 插入成就数据
+        for achievement in ACHIEVEMENT_DATA:
+            # 先检查是否已存在该ID的成就
+            existing = self.fetch_one(
+                "SELECT id FROM achievements WHERE id = ?",
+                (achievement[0],)
+            )
+            if not existing:
+                self.execute_query(
+                    """INSERT INTO achievements
+                       (id, name, description, condition_type, condition_value, reward_gold, reward_exp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    achievement
+                )
+
+        # 插入称号数据
+        for title in TITLE_DATA:
+            # 先检查是否已存在该ID的称号
+            existing = self.fetch_one(
+                "SELECT id FROM titles WHERE id = ?",
+                (title[0],)
+            )
+            if not existing:
+                # TITLE_DATA格式: (id, name, description, display_format)
+                # 数据库格式: (id, name, description, condition_type, condition_value)
+                # 我们需要调整格式以匹配数据库表结构
+                self.execute_query(
+                    """INSERT INTO titles
+                       (id, name, description, condition_type, condition_value)
+                       VALUES (?, ?, ?, '', 0)""",
+                    (title[0], title[1], title[2])
+                )
+
     def _init_base_data(self):
         """初始化基础数据"""
-        # 检查是否已有数据
+        # 检查是否已有数据（检查鱼类数据作为代表）
         fish_count = self.fetch_one("SELECT COUNT(*) as count FROM fish_templates")
         if fish_count and fish_count['count'] > 0:
+            # 如果已有数据，只插入成就和称号数据（如果不存在）
+            self._init_achievements_and_titles()
             return
 
         # 插入鱼类数据
@@ -421,24 +463,36 @@ class DatabaseManager:
 
         # 插入成就数据
         for achievement in ACHIEVEMENT_DATA:
-            self.execute_query(
-                """INSERT INTO achievements
-                   (id, name, description, condition_type, condition_value, reward_gold, reward_exp)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                achievement
+            # 先检查是否已存在该ID的成就
+            existing = self.fetch_one(
+                "SELECT id FROM achievements WHERE id = ?",
+                (achievement[0],)
             )
+            if not existing:
+                self.execute_query(
+                    """INSERT INTO achievements
+                       (id, name, description, condition_type, condition_value, reward_gold, reward_exp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    achievement
+                )
 
         # 插入称号数据 (使用TITLE_DATA格式)
         for title in TITLE_DATA:
-            # TITLE_DATA格式: (id, name, description, display_format)
-            # 数据库格式: (id, name, description, condition_type, condition_value)
-            # 我们需要调整格式以匹配数据库表结构
-            self.execute_query(
-                """INSERT INTO titles
-                   (id, name, description, condition_type, condition_value)
-                   VALUES (?, ?, ?, '', 0)""",
-                (title[0], title[1], title[2])
+            # 先检查是否已存在该ID的称号
+            existing = self.fetch_one(
+                "SELECT id FROM titles WHERE id = ?",
+                (title[0],)
             )
+            if not existing:
+                # TITLE_DATA格式: (id, name, description, display_format)
+                # 数据库格式: (id, name, description, condition_type, condition_value)
+                # 我们需要调整格式以匹配数据库表结构
+                self.execute_query(
+                    """INSERT INTO titles
+                       (id, name, description, condition_type, condition_value)
+                       VALUES (?, ?, ?, '', 0)""",
+                    (title[0], title[1], title[2])
+                )
 
     def execute_query(self, query: str, params: tuple = ()):
         """执行查询语句"""

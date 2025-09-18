@@ -1,4 +1,5 @@
 from typing import Optional, List, Tuple
+import math
 
 from astrbot import logger
 from ..models.user import User, FishInventory
@@ -161,6 +162,22 @@ class FishingService:
         user.total_fish_weight += final_weight
         user.total_income += final_value
 
+        # 增加经验（根据鱼的稀有度和价值）
+        exp_gained = self._calculate_exp_gain(caught_fish, final_weight, final_value, user.level)
+        user.exp += exp_gained
+
+        # 检查是否升级
+        old_level = user.level
+        user.level = self._calculate_level(user.exp)
+
+        # 如果升级了，添加升级信息
+        level_up_message = ""
+        if user.level > old_level:
+            if user.level >= 100:
+                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
+            else:
+                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
+
         # 记录钓鱼日志
         self.db.execute_query(
             """INSERT INTO fishing_logs
@@ -172,17 +189,17 @@ class FishingService:
         # 更新用户数据到数据库（包含金币更新，以扣除钓鱼费用）
         self.db.execute_query(
             """UPDATE users SET
-                gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
+                gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?, exp=?, level=?
                 WHERE user_id=?""",
             (user.gold, user.fishing_count, user.last_fishing_time,
-             user.total_fish_weight, user.total_income, user.user_id)
+             user.total_fish_weight, user.total_income, user.exp, user.level, user.user_id)
         )
 
         # 检查成就
         newly_unlocked = self.achievement_service.check_achievements(user)
 
         # 构造返回消息，包含成就解锁信息
-        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币"
+        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币\n获得经验: {exp_gained}点{level_up_message}"
 
         # 如果有新解锁的成就，添加到消息中
         if newly_unlocked:
@@ -191,6 +208,37 @@ class FishingService:
                 message += f"  · {achievement.name}: {achievement.description}\n"
 
         return FishingResult(success=True, fish=caught_fish, weight=final_weight, value=final_value, message=message)
+
+    def _calculate_exp_gain(self, fish: FishTemplate, weight: float, value: int, user_level: int = 1) -> int:
+        """计算钓鱼获得的经验值"""
+        # 基础经验 = 鱼的稀有度 * 10 + 价值 / 10 + 重量 / 10
+        base_exp = fish.rarity * 10 + value // 10 + int(weight * 10)
+
+        # 等级加成：每级增加1%经验
+        level_bonus = 1 + (user_level - 1) * 0.01
+
+        # 计算最终经验
+        final_exp = int(base_exp * level_bonus)
+
+        # 最小经验值为1
+        return max(1, final_exp)
+
+    def _calculate_level(self, exp: int) -> int:
+        """根据经验计算等级"""
+        # 每级所需经验 = 100 * 等级^2
+        # 使用逆向计算：level = sqrt(exp / 100) + 1
+        import math
+        level = int(math.sqrt(exp / 100)) + 1
+
+        # 最大等级限制为100级
+        return min(level, 100)
+
+    def _get_exp_for_level(self, level: int) -> int:
+        """获取升级到指定等级所需的总经验"""
+        # 每级所需经验 = 100 * 等级^2
+        # 最大等级限制为100级
+        capped_level = min(level, 100)
+        return 100 * (capped_level ** 2)
 
     def _get_equipped_rod(self, user_id: str) -> Optional[RodTemplate]:
         """获取用户装备的鱼竿"""

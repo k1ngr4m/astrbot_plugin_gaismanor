@@ -81,6 +81,11 @@ class GaismanorPlugin(Star):
         async for result in self.user_service.gold_command(event):
             yield result
 
+    @filter.command("等级")
+    async def level_command(self, event: AstrMessageEvent):
+        async for result in self.user_service.level_command(event):
+            yield result
+
     # 钓鱼相关
     @filter.command("钓鱼")
     async def fish_command(self, event: AstrMessageEvent):
@@ -126,12 +131,12 @@ class GaismanorPlugin(Star):
         async for result in self.shop_service.shop_command(event):
             yield result
 
-    @filter.command("商店 鱼竿")
+    @filter.command("商店鱼竿")
     async def shop_rods_command(self, event: AstrMessageEvent):
         async for result in self.shop_service.shop_rods_command(event):
             yield result
 
-    @filter.command("商店 鱼饵")
+    @filter.command("商店鱼饵")
     async def shop_bait_command(self, event: AstrMessageEvent):
         async for result in self.shop_service.shop_bait_command(event):
             yield result
@@ -225,6 +230,7 @@ class GaismanorPlugin(Star):
             "  /钓鱼 - 开始钓鱼",
             "  /签到 - 每日签到",
             "  /金币 - 查看金币余额",
+            "  /等级 - 查看等级和经验",
             "  /自动钓鱼 - 开启/关闭自动钓鱼",
             "  /钓鱼记录 - 查看钓鱼历史记录",
             "",

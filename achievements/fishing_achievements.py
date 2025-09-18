@@ -68,10 +68,10 @@ class TotalWeight10000kg(BaseAchievement):
 
     def get_progress(self, context: UserContext) -> int:
         """返回用户总钓鱼重量作为当前进度。"""
-        return context.user.total_weight_caught
+        return int(context.user.total_fish_weight * 1000)  # 转换为克
 
     def check(self, context: UserContext) -> bool:
-        return context.user.total_weight_caught >= self.target_value
+        return context.user.total_fish_weight * 1000 >= self.target_value
 
 
 class HeavyFishCaught(BaseAchievement):

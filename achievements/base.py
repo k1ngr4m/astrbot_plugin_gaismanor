@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple, Any, Set
 
-from ..domain.models import User
+from ..models.user import User
 
 @dataclass
 class UserContext:
