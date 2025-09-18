@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from astrbot.core.platform import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate
 from ..models.database import DatabaseManager

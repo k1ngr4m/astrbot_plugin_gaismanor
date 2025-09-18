@@ -1,5 +1,5 @@
 from typing import List, Optional
-from astrbot.core.platform import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent
 from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.equipment import Rod, Accessory, Bait
@@ -187,7 +187,7 @@ class GachaService:
 
         # 执行抽卡
         pool = self.gacha_pools[pool_id]
-        rarity = self.get_rarity()
+        rarity = self.get_rarity(pool_id)
 
         # 随机选择物品类型
         item_types = ["rod", "accessory", "bait"]
@@ -264,7 +264,7 @@ class GachaService:
         results = []
 
         for i in range(10):
-            rarity = self.get_rarity()
+            rarity = self.get_rarity(pool_id)
 
             # 随机选择物品类型
             item_types = ["rod", "accessory", "bait"]
@@ -335,40 +335,33 @@ class GachaService:
         pool = self.gacha_pools[pool_id]
 
         # 构造卡池信息
-        pool_info = f"=== {pool['name']} ===\n"
-        pool_info += f"{pool['description']}\n\n"
-        pool_info += "稀有度概率:\n"
+        pool_info = f"=== {pool['name']} ===\n\n"
+        pool_info += f"{pool['description']}\n\n\n"
 
-        total_weight = sum(self.rarity_weights.values())
-        for rarity in range(5, 0, -1):  # 从5星到1星
-            probability = (self.rarity_weights[rarity] / total_weight) * 100
-            stars = "★" * rarity
-            pool_info += f"{stars} ({rarity}星): {probability:.1f}%\n"
-
-        pool_info += "\n包含物品:\n"
+        pool_info += "\n\n包含物品:\n\n"
 
         # 显示鱼竿
-        pool_info += "鱼竿:\n"
+        pool_info += "鱼竿:\n\n"
         for rod_id in pool["items"]["rod"]:
             rod = self.db.fetch_one("SELECT name, rarity FROM rod_templates WHERE id = ?", (rod_id,))
             if rod:
                 stars = "★" * rod['rarity']
-                pool_info += f"  · {rod['name']} ({stars})\n"
+                pool_info += f"  · {rod['name']} ({stars})\n\n"
 
         # 显示饰品
-        pool_info += "饰品:\n"
+        pool_info += "饰品:\n\n"
         for accessory_id in pool["items"]["accessory"]:
             accessory = self.db.fetch_one("SELECT name, rarity FROM accessory_templates WHERE id = ?", (accessory_id,))
             if accessory:
                 stars = "★" * accessory['rarity']
-                pool_info += f"  · {accessory['name']} ({stars})\n"
+                pool_info += f"  · {accessory['name']} ({stars})\n\n"
 
         # 显示鱼饵
-        pool_info += "鱼饵:\n"
+        pool_info += "鱼饵:\n\n"
         for bait_id in pool["items"]["bait"]:
             bait = self.db.fetch_one("SELECT name, rarity FROM bait_templates WHERE id = ?", (bait_id,))
             if bait:
                 stars = "★" * bait['rarity']
-                pool_info += f"  · {bait['name']} ({stars})\n"
+                pool_info += f"  · {bait['name']} ({stars})\n\n"
 
         yield event.plain_result(pool_info)

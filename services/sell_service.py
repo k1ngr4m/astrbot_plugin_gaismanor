@@ -1,5 +1,5 @@
 from typing import List, Optional
-from astrbot.core.platform import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent
 from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.equipment import Rod, Bait

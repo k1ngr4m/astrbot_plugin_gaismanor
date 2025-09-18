@@ -486,9 +486,127 @@ def get_gacha_pools():
 @login_required
 def update_gacha_pool(pool_id):
     """更新卡池"""
-    # 注意：在实际应用中，卡池配置通常存储在数据库中
-    # 这里我们只是返回一个示例响应
-    return jsonify({'message': '卡池更新功能将在后续版本中实现'}), 200
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description')
+        rarity_weights = data.get('rarity_weights')
+        items = data.get('items', {})
+
+        # 更新卡池基本信息
+        if name or description:
+            update_fields = []
+            update_values = []
+            if name:
+                update_fields.append("name = ?")
+                update_values.append(name)
+            if description:
+                update_fields.append("description = ?")
+                update_values.append(description)
+
+            if update_fields:
+                current_time = int(time.time())
+                update_values.append(current_time)
+                update_values.append(pool_id)
+                db_manager.execute_query(
+                    f"UPDATE gacha_pools SET {', '.join(update_fields)}, updated_at = ? WHERE id = ?",
+                    update_values
+                )
+
+        # 更新稀有度权重
+        if rarity_weights:
+            # 先删除现有的权重配置
+            db_manager.execute_query(
+                "DELETE FROM gacha_pool_rarity_weights WHERE pool_id = ?",
+                (pool_id,)
+            )
+
+            # 插入新的权重配置
+            current_time = int(time.time())
+            for rarity, weight in rarity_weights.items():
+                db_manager.execute_query(
+                    """INSERT INTO gacha_pool_rarity_weights
+                       (pool_id, rarity, weight, created_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (pool_id, int(rarity), int(weight), current_time)
+                )
+
+        # 更新物品配置
+        if items:
+            # 先删除现有的物品配置
+            db_manager.execute_query(
+                "DELETE FROM gacha_pool_items WHERE pool_id = ?",
+                (pool_id,)
+            )
+
+            # 插入新的物品配置
+            current_time = int(time.time())
+            for item_type, item_ids in items.items():
+                for item_id in item_ids:
+                    # 获取物品的稀有度
+                    rarity = 1
+                    if item_type == "rod":
+                        item = db_manager.fetch_one(
+                            "SELECT rarity FROM rod_templates WHERE id = ?",
+                            (item_id,)
+                        )
+                    elif item_type == "accessory":
+                        item = db_manager.fetch_one(
+                            "SELECT rarity FROM accessory_templates WHERE id = ?",
+                            (item_id,)
+                        )
+                    elif item_type == "bait":
+                        item = db_manager.fetch_one(
+                            "SELECT rarity FROM bait_templates WHERE id = ?",
+                            (item_id,)
+                        )
+
+                    if item:
+                        rarity = item['rarity']
+
+                    db_manager.execute_query(
+                        """INSERT INTO gacha_pool_items
+                           (pool_id, item_type, item_template_id, rarity, weight, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (pool_id, item_type, item_id, rarity, 100, current_time)
+                    )
+
+        return jsonify({'message': '卡池更新成功'}), 200
+    except Exception as e:
+        print(f"更新卡池失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gacha_pool_items', methods=['GET'])
+@login_required
+def get_all_items_for_gacha():
+    """获取所有可用于卡池的物品"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 获取所有鱼竿
+        rods = db_manager.fetch_all("SELECT id, name, rarity FROM rod_templates ORDER BY rarity, id")
+        rod_list = [{'id': rod['id'], 'name': rod['name'], 'rarity': rod['rarity'], 'type': 'rod'} for rod in rods]
+
+        # 获取所有饰品
+        accessories = db_manager.fetch_all("SELECT id, name, rarity FROM accessory_templates ORDER BY rarity, id")
+        accessory_list = [{'id': accessory['id'], 'name': accessory['name'], 'rarity': accessory['rarity'], 'type': 'accessory'} for accessory in accessories]
+
+        # 获取所有鱼饵
+        baits = db_manager.fetch_all("SELECT id, name, rarity FROM bait_templates ORDER BY rarity, id")
+        bait_list = [{'id': bait['id'], 'name': bait['name'], 'rarity': bait['rarity'], 'type': 'bait'} for bait in baits]
+
+        return jsonify({
+            'rods': rod_list,
+            'accessories': accessory_list,
+            'baits': bait_list
+        }), 200
+    except Exception as e:
+        print(f"获取物品列表失败: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def start_webui(port):
     """启动WebUI"""
