@@ -153,10 +153,9 @@ class FishingService:
             (user.user_id, caught_fish.id, final_weight, final_value, int(time.time()))
         )
 
-        # 更新用户统计数据
+        # 更新用户统计数据（不再直接增加金币）
         user.total_fish_weight += final_weight
         user.total_income += final_value
-        user.gold += final_value
 
         # 记录钓鱼日志
         self.db.execute_query(
@@ -166,7 +165,7 @@ class FishingService:
             (user.user_id, caught_fish.id, final_weight, final_value, True, int(time.time()))
         )
 
-        # 更新用户数据到数据库
+        # 更新用户数据到数据库（包含金币更新，以扣除钓鱼费用）
         self.db.execute_query(
             """UPDATE users SET
                 gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
@@ -226,3 +225,25 @@ class FishingService:
                 icon_url=result['icon_url']
             )
         return None
+
+    async def fish_command(self, event):
+        """处理钓鱼命令"""
+        # 获取用户信息
+        user_id = event.get_sender_id()
+        username = event.get_sender_name()
+
+        # 从数据库获取用户（需要先注册）
+        from ..services.user_service import UserService
+        user_service = UserService(self.db)
+        user = user_service.get_user(user_id)
+
+        # 如果用户不存在，提示需要先注册
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 执行钓鱼操作
+        result = self.fish(user)
+
+        # 返回结果
+        yield result.message

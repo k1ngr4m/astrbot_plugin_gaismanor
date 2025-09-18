@@ -602,6 +602,7 @@ class MarketService:
         if result:
             return User(
                 user_id=result['user_id'],
+                platform=result['platform'],
                 nickname=result['nickname'],
                 gold=result['gold'],
                 exp=result['exp'],

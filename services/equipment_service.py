@@ -1,4 +1,5 @@
 from typing import Optional, List
+from astrbot.core.platform import AstrMessageEvent
 from ..models.user import User
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.database import DatabaseManager
@@ -17,7 +18,7 @@ class EquipmentService:
             (user_id,)
         )
         return [
-            Rod(
+        Rod(
                 id=row['id'],
                 name=row['name'],
                 rarity=row['rarity'],
@@ -174,3 +175,50 @@ class EquipmentService:
                 is_equipped=bool(result['is_equipped'])
             )
         return None
+
+    async def rod_command(self, event: AstrMessageEvent):
+        """鱼竿命令"""
+        user_id = event.get_sender_id()
+        # 获取用户鱼竿库存
+        rods = self.get_user_rods(user_id)
+
+        if not rods:
+            yield event.plain_result("您的鱼竿背包是空的，快去商店购买一些鱼竿吧！")
+            return
+
+        # 构建鱼竿信息
+        rod_info = "=== 您的鱼竿背包 ===\n"
+        for i, rod in enumerate(rods, 1):
+            rarity_stars = "★" * rod.rarity
+            equip_status = " [装备中]" if rod.is_equipped else ""
+            rod_info += f"{i}. {rod.name} {rarity_stars} - 等级:{rod.level} - 经验:{rod.exp}{equip_status}\n"
+            rod_info += f"   品质加成: +{rod.quality_mod}  数量加成: +{rod.quantity_mod}\n\n"
+
+        yield event.plain_result(rod_info)
+
+    async def use_rod_command(self, event: AstrMessageEvent, rod_id: int):
+        """使用/装备鱼竿命令"""
+        user_id = event.get_sender_id()
+
+        # 检查鱼竿是否存在
+        rod_instance = self.db.fetch_one(
+            "SELECT * FROM user_rod_instances WHERE user_id = ? AND id = ?",
+            (user_id, rod_id)
+        )
+
+        if not rod_instance:
+            yield event.plain_result("未找到指定的鱼竿")
+            return
+
+        # 装备鱼竿
+        success = self.equip_rod(user_id, rod_id)
+
+        if success:
+            rod_template = self.db.fetch_one(
+                "SELECT name FROM rod_templates WHERE id = ?",
+                (rod_instance['rod_template_id'],)
+            )
+            rod_name = rod_template['name'] if rod_template else "未知鱼竿"
+            yield event.plain_result(f"成功装备鱼竿: {rod_name}")
+        else:
+            yield event.plain_result("装备鱼竿失败")

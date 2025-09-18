@@ -11,6 +11,7 @@ class UserService:
     async def register_command(self, event: AstrMessageEvent):
         """用户注册命令"""
         user_id = event.get_sender_id()
+        platform = event.get_platform_name() or "unknown"
         nickname = event.get_sender_name() or f"用户{user_id[-4:]}"  # 如果没有昵称，使用ID后4位
 
         # 检查用户是否已存在
@@ -20,7 +21,7 @@ class UserService:
             return
 
         # 创建新用户
-        user = self.create_user(user_id, nickname)
+        user = self.create_user(user_id, platform, nickname)
         yield event.plain_result(f"注册成功！欢迎 {nickname} 来到庄园钓鱼世界！\n您获得了初始金币: {user.gold}枚")
 
     async def sign_in_command(self, event: AstrMessageEvent):
@@ -91,6 +92,7 @@ class UserService:
         if result:
             return User(
                 user_id=result['user_id'],
+                platform=result['platform'],
                 nickname=result['nickname'],
                 gold=result['gold'],
                 exp=result['exp'],
@@ -105,19 +107,19 @@ class UserService:
             )
         return None
 
-    def create_user(self, user_id: str, nickname: str) -> User:
+    def create_user(self, user_id: str, platform: str, nickname: str) -> User:
         """创建新用户"""
         now = int(time.time())
-        user = User(user_id=user_id, nickname=nickname, created_at=now, updated_at=now)
+        user = User(user_id=user_id, platform=platform, nickname=nickname, created_at=now, updated_at=now)
 
         self.db.execute_query(
             """INSERT INTO users (
-                user_id, nickname, gold, exp, level, fishing_count,
+                user_id, platform, nickname, gold, exp, level, fishing_count,
                 total_fish_weight, total_income, last_fishing_time,
                 auto_fishing, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                user.user_id, user.nickname, user.gold, user.exp, user.level,
+                user.user_id, user.platform, user.nickname, user.gold, user.exp, user.level,
                 user.fishing_count, user.total_fish_weight, user.total_income,
                 user.last_fishing_time, user.auto_fishing, user.created_at, user.updated_at
             )
@@ -129,12 +131,12 @@ class UserService:
         user.updated_at = int(time.time())
         self.db.execute_query(
             """UPDATE users SET
-                nickname=?, gold=?, exp=?, level=?, fishing_count=?,
+                platform=?, nickname=?, gold=?, exp=?, level=?, fishing_count=?,
                 total_fish_weight=?, total_income=?, last_fishing_time=?,
                 auto_fishing=?, updated_at=?
             WHERE user_id=?""",
             (
-                user.nickname, user.gold, user.exp, user.level, user.fishing_count,
+                user.platform, user.nickname, user.gold, user.exp, user.level, user.fishing_count,
                 user.total_fish_weight, user.total_income, user.last_fishing_time,
                 user.auto_fishing, user.updated_at, user.user_id
             )

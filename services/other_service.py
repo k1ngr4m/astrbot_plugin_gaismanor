@@ -49,6 +49,7 @@ class OtherService:
                     # 创建 User 对象
                     user = User(
                         user_id=user_data['user_id'],
+                        platform=user_data['platform'],
                         nickname=user_data['nickname'],
                         gold=user_data['gold'],
                         exp=user_data['exp'],
@@ -71,9 +72,9 @@ class OtherService:
                         # 更新用户数据
                         self.db.execute_query(
                             """UPDATE users SET
-                               gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
+                               platform=?, gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
                                WHERE user_id=?""",
-                            (user.gold, user.fishing_count, user.last_fishing_time,
+                            (user.platform, user.gold, user.fishing_count, user.last_fishing_time,
                              user.total_fish_weight, user.total_income, user.user_id)
                         )
 

@@ -72,6 +72,7 @@ def get_users():
     for user in users:
         user_list.append({
             'user_id': user['user_id'],
+            'platform': user['platform'],
             'nickname': user['nickname'],
             'gold': user['gold'],
             'exp': user['exp'],
@@ -112,9 +113,9 @@ def add_user():
         current_time = int(time.time())
         db_manager.execute_query(
             """INSERT INTO users
-               (user_id, nickname, gold, exp, level, fishing_count, total_fish_weight, total_income,
+               (user_id, platform, nickname, gold, exp, level, fishing_count, total_fish_weight, total_income,
                 auto_fishing, last_fishing_time, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, 0, 0, 0, FALSE, 0, ?, ?)""",
+               VALUES (?, 'unknown', ?, ?, ?, ?, 0, 0, 0, FALSE, 0, ?, ?)""",
             (user_id, nickname, gold, exp, level, current_time, current_time)
         )
 

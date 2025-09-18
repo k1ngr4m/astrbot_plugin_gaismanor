@@ -26,6 +26,7 @@ class DatabaseManager:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL DEFAULT 'unknown',
                 nickname TEXT NOT NULL,
                 gold INTEGER DEFAULT 100,
                 exp INTEGER DEFAULT 0,
