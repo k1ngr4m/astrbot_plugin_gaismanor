@@ -63,15 +63,10 @@ class GaismanorPlugin(Star):
         """插件销毁方法"""
         logger.info("庄园插件已卸载")
 
-    # 🌟 基础命令
+    # 🌟 全局基础命令
     @filter.command("注册")
     async def register_command(self, event: AstrMessageEvent):
         async for result in self.user_service.register_command(event):
-            yield result
-
-    @filter.command("钓鱼")
-    async def fish_command(self, event: AstrMessageEvent):
-        async for result in self.fishing_service.fish_command(event):
             yield result
 
     @filter.command("签到")
@@ -84,15 +79,21 @@ class GaismanorPlugin(Star):
         async for result in self.user_service.gold_command(event):
             yield result
 
-    # 🎒 背包相关
+    # 钓鱼相关
+    @filter.command("钓鱼")
+    async def fish_command(self, event: AstrMessageEvent):
+        async for result in self.fishing_service.fish_command(event):
+            yield result
+
+    @filter.command("自动钓鱼")
+    async def auto_fishing_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.auto_fishing_command(event):
+            yield result
+
+    # 鱼塘相关
     @filter.command("鱼塘")
     async def fish_pond_command(self, event: AstrMessageEvent):
         async for result in self.inventory_service.fish_pond_command(event):
-            yield result
-
-    @filter.command("鱼塘容量")
-    async def fish_pond_capacity_command(self, event: AstrMessageEvent):
-        async for result in self.inventory_service.fish_pond_capacity_command(event):
             yield result
 
     @filter.command("升级鱼塘")
@@ -100,6 +101,7 @@ class GaismanorPlugin(Star):
         async for result in self.inventory_service.upgrade_fish_pond_command(event):
             yield result
 
+    # 背包相关
     @filter.command("鱼饵")
     async def bait_command(self, event: AstrMessageEvent):
         async for result in self.inventory_service.bait_command(event):
@@ -146,37 +148,12 @@ class GaismanorPlugin(Star):
         async for result in self.equipment_service.use_rod_command(event, rod_id):
             yield result
 
-    # 🛒 市场与购买
-    @filter.command("市场")
-    async def market_command(self, event: AstrMessageEvent):
-        async for result in self.market_service.market_command(event):
-            yield result
-
-    @filter.command("上架鱼饵")
-    async def list_bait_command(self, event: AstrMessageEvent, bait_id: int, price: int):
-        async for result in self.market_service.list_bait_command(event, bait_id, price):
-            yield result
-
-    @filter.command("上架鱼竿")
-    async def list_rod_command(self, event: AstrMessageEvent, rod_id: int, price: int):
-        async for result in self.market_service.list_rod_command(event, rod_id, price):
-            yield result
-
-    @filter.command("购买")
-    async def buy_item_command(self, event: AstrMessageEvent, item_id: int):
-        async for result in self.market_service.buy_item_command(event, item_id):
-            yield result
-
     # 💰 出售鱼类
     @filter.command("全部卖出")
     async def sell_all_command(self, event: AstrMessageEvent):
         async for result in self.sell_service.sell_all_command(event):
             yield result
 
-    @filter.command("保留卖出")
-    async def sell_keep_one_command(self, event: AstrMessageEvent):
-        async for result in self.sell_service.sell_keep_one_command(event):
-            yield result
 
     @filter.command("出售稀有度")
     async def sell_by_rarity_command(self, event: AstrMessageEvent, rarity: int):
@@ -210,11 +187,6 @@ class GaismanorPlugin(Star):
             yield result
 
     # ⚙️ 其他功能
-    @filter.command("自动钓鱼")
-    async def auto_fishing_command(self, event: AstrMessageEvent):
-        async for result in self.other_service.auto_fishing_command(event):
-            yield result
-
     @filter.command("排行榜")
     async def leaderboard_command(self, event: AstrMessageEvent):
         async for result in self.other_service.leaderboard_command(event):
@@ -238,7 +210,6 @@ class GaismanorPlugin(Star):
             "",
             "🎒 背包相关:",
             "  /鱼塘 - 查看鱼塘",
-            "  /鱼塘容量 - 查看鱼塘容量",
             "  /升级鱼塘 - 升级鱼塘容量",
             "  /鱼饵 - 查看鱼饵背包",
             "  /鱼竿 - 查看鱼竿背包",
@@ -252,15 +223,8 @@ class GaismanorPlugin(Star):
             "  /使用鱼饵 <鱼饵ID> - 使用鱼饵",
             "  /使用鱼竿 <鱼竿ID> - 装备鱼竿",
             "",
-            "🏪 市场与交易:",
-            "  /市场 - 查看市场",
-            "  /上架鱼饵 <鱼饵ID> <价格> - 上架鱼饵",
-            "  /上架鱼竿 <鱼竿ID> <价格> - 上架鱼竿",
-            "  /购买 <商品ID> - 购买商品",
-            "",
             "💰 出售鱼类:",
             "  /全部卖出 - 出售所有鱼类",
-            "  /保留卖出 - 保留每种鱼各一条，其余卖出",
             "  /出售稀有度 <稀有度> - 按稀有度出售鱼类",
             "  /出售鱼竿 <鱼竿ID> - 出售鱼竿",
             "  /出售鱼饵 <鱼饵ID> - 出售鱼饵",

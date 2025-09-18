@@ -41,44 +41,6 @@ class SellService:
 
         yield event.plain_result(f"成功卖出所有鱼类！\n获得金币: {total_value}枚")
 
-    async def sell_keep_one_command(self, event: AstrMessageEvent):
-        """保留一条卖出其他鱼类命令"""
-        user_id = event.get_sender_id()
-
-        # 获取用户鱼类库存
-        fish_inventory = self.db.fetch_all(
-            "SELECT * FROM user_fish_inventory WHERE user_id = ? ORDER BY value DESC",
-            (user_id,)
-        )
-
-        if not fish_inventory:
-            yield event.plain_result("您的鱼塘是空的，没有鱼可以卖出！")
-            return
-
-        if len(fish_inventory) <= 1:
-            yield event.plain_result("您的鱼塘中只有一条鱼或没有鱼，无法执行保留一条卖出的操作！")
-            return
-
-        # 保留价值最高的鱼，卖出其他鱼
-        fish_to_sell = fish_inventory[1:]  # 除了第一条鱼之外的所有鱼
-        total_value = sum(fish['value'] for fish in fish_to_sell)
-
-        # 删除要卖出的鱼
-        fish_ids = [fish['id'] for fish in fish_to_sell]
-        placeholders = ','.join('?' * len(fish_ids))
-        self.db.execute_query(
-            f"DELETE FROM user_fish_inventory WHERE id IN ({placeholders})",
-            fish_ids
-        )
-
-        # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (total_value, user_id)
-        )
-
-        yield event.plain_result(f"成功卖出 {len(fish_to_sell)} 条鱼！\n保留了价值最高的鱼\n获得金币: {total_value}枚")
-
     async def sell_by_rarity_command(self, event: AstrMessageEvent, rarity: int):
         """按稀有度卖出鱼类命令"""
         user_id = event.get_sender_id()

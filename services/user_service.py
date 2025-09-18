@@ -22,7 +22,7 @@ class UserService:
 
         # 创建新用户
         user = self.create_user(user_id, platform, nickname)
-        yield event.plain_result(f"注册成功！欢迎 {nickname} 来到庄园钓鱼世界！\n您获得了初始金币: {user.gold}枚")
+        yield event.plain_result(f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n您获得了初始金币: {user.gold}")
 
     async def sign_in_command(self, event: AstrMessageEvent):
         """签到命令"""
@@ -70,7 +70,7 @@ class UserService:
             (user_id, today, streak, reward_gold, int(time.time()))
         )
 
-        yield event.plain_result(f"签到成功！\n获得金币: {reward_gold}枚\n连续签到: {streak}天")
+        yield event.plain_result(f"签到成功！\n\n获得金币: {reward_gold}\n\n连续签到: {streak}天")
 
     async def gold_command(self, event: AstrMessageEvent):
         """查看金币命令"""
@@ -81,7 +81,7 @@ class UserService:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
-        yield event.plain_result(f"您的金币余额: {user.gold}枚")
+        yield event.plain_result(f"您的金币余额: {user.gold}")
 
     def get_user(self, user_id: str) -> Optional[User]:
         """获取用户信息"""
