@@ -1,4 +1,10 @@
 {
+  "port": {
+    "description": "WebUI端口",
+    "type": "int",
+    "hint": "WebUI端口，请确保未被占用",
+    "default": 6200
+  },
   "token": {
     "description": "Bot Token",
     "type": "string",

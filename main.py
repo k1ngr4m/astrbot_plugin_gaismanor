@@ -1,6 +1,6 @@
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api import logger, AstrBotConfig
 from .models.database import DatabaseManager
 from .commands.user_commands import UserCommands
 from .commands.inventory_commands import InventoryCommands
@@ -9,10 +9,12 @@ from .commands.market_commands import MarketCommands
 from .commands.sell_commands import SellCommands
 from .commands.gacha_commands import GachaCommands
 from .commands.other_commands import OtherCommands
+import threading
+import time
 
 @register("gaismanor", "k1ngr4m", "集成农场渔场的游戏", "1.0.0")
 class GaismanorPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.context = context
         # 初始化数据库和服务
@@ -24,7 +26,23 @@ class GaismanorPlugin(Star):
         self.sell_commands = SellCommands(self.db_manager)
         self.gacha_commands = GachaCommands(self.db_manager)
         self.other_commands = OtherCommands(self.db_manager)
+
+        self.port = config.get("port", 6200)
+
+        # 启动WebUI
+        self.start_webui()
+
         logger.info("庄园插件初始化完成")
+
+    def start_webui(self):
+        """启动WebUI"""
+        try:
+            from .webui import start_webui
+            webui_thread = threading.Thread(target=start_webui, daemon=True)
+            webui_thread.start()
+            logger.info("庄园插件WebUI已启动，访问地址: http://localhost:6200")
+        except Exception as e:
+            logger.error(f"启动WebUI失败: {e}")
 
     async def initialize(self):
         """插件初始化方法"""
