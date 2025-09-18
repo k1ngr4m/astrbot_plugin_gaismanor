@@ -161,6 +161,11 @@ class GaismanorPlugin(Star):
         async for result in self.equipment_service.use_rod_command(event, rod_id):
             yield result
 
+    @filter.command("卸下鱼竿")
+    async def unequip_rod_command(self, event: AstrMessageEvent):
+        async for result in self.equipment_service.unequip_rod_command(event):
+            yield result
+
     # 💰 出售鱼类
     @filter.command("全部卖出")
     async def sell_all_command(self, event: AstrMessageEvent):
@@ -248,6 +253,7 @@ class GaismanorPlugin(Star):
             "  /购买鱼竿 <鱼竿ID> - 购买鱼竿",
             "  /使用鱼饵 <鱼饵ID> - 使用鱼饵",
             "  /使用鱼竿 <鱼竿ID> - 装备鱼竿",
+            "  /卸下鱼竿 - 卸下鱼竿",
             "",
             "💰 出售鱼类:",
             "  /全部卖出 - 出售所有鱼类",
