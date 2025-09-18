@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鱼饵管理 - 庄园管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .bait-card {
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .bait-card:hover {
+            transform: translateY(-5px);
+        }
+        .rarity-1 { border-left: 5px solid #cccccc; }
+        .rarity-2 { border-left: 5px solid #00cc66; }
+        .rarity-3 { border-left: 5px solid #3399ff; }
+        .rarity-4 { border-left: 5px solid #cc66ff; }
+        .rarity-5 { border-left: 5px solid #ffcc00; }
+        .star { color: #ffcc00; }
+        .navbar {
+            margin-bottom: 30px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-fish"></i> 庄园管理系统</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/"><i class="fas fa-home"></i> 首页</a>
+                <a class="nav-link" href="/fish"><i class="fas fa-fish"></i> 鱼类管理</a>
+                <a class="nav-link" href="/rods"><i class="fas fa-fishing-rod"></i> 鱼竿管理</a>
+                <a class="nav-link" href="/accessories"><i class="fas fa-gem"></i> 饰品管理</a>
+                <a class="nav-link active" href="/baits"><i class="fas fa-bug"></i> 鱼饵管理</a>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> 登出</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="mb-4"><i class="fas fa-bug"></i> 鱼饵管理</h1>
+
+        <!-- 操作按钮 -->
+        <div class="d-flex justify-content-between mb-3">
+            <div>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBaitModal">
+                    <i class="fas fa-plus"></i> 添加鱼饵
+                </button>
+            </div>
+            <div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索鱼饵名称...">
+                    <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                        <i class="fas fa-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 鱼饵数据表格 -->
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>名称</th>
+                        <th>描述</th>
+                        <th>稀有度</th>
+                        <th>效果描述</th>
+                        <th>购买价格</th>
+                        <th>持续时间(分钟)</th>
+                        <th>所需鱼竿稀有度</th>
+                        <th>成功率加成</th>
+                        <th>稀有鱼几率加成</th>
+                        <th>垃圾减少加成</th>
+                        <th>价值加成</th>
+                        <th>数量加成</th>
+                        <th>是否消耗</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="bait-table-body">
+                    <!-- 鱼饵数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <nav aria-label="鱼饵数据分页">
+            <ul class="pagination justify-content-center" id="pagination">
+                <!-- 分页控件将通过JavaScript动态加载 -->
+            </ul>
+        </nav>
+    </div>
+
+    <!-- 添加鱼饵模态框 -->
+    <div class="modal fade" id="addBaitModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加鱼饵</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addBaitForm">
+                        <div class="mb-3">
+                            <label for="addName" class="form-label">名称</label>
+                            <input type="text" class="form-control" id="addName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addDescription" class="form-label">描述</label>
+                            <textarea class="form-control" id="addDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addRarity" class="form-label">稀有度</label>
+                            <select class="form-select" id="addRarity" required>
+                                <option value="1">★☆☆☆☆ (1星)</option>
+                                <option value="2">★★☆☆☆ (2星)</option>
+                                <option value="3">★★★☆☆ (3星)</option>
+                                <option value="4">★★★★☆ (4星)</option>
+                                <option value="5">★★★★★ (5星)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addEffectDescription" class="form-label">效果描述</label>
+                            <textarea class="form-control" id="addEffectDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addCost" class="form-label">购买价格(金币)</label>
+                            <input type="number" class="form-control" id="addCost" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addDurationMinutes" class="form-label">持续时间(分钟)</label>
+                            <input type="number" class="form-control" id="addDurationMinutes" min="0" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addRequiredRodRarity" class="form-label">所需鱼竿稀有度</label>
+                            <select class="form-select" id="addRequiredRodRarity">
+                                <option value="0">无限制</option>
+                                <option value="1">★☆☆☆☆ (1星)</option>
+                                <option value="2">★★☆☆☆ (2星)</option>
+                                <option value="3">★★★☆☆ (3星)</option>
+                                <option value="4">★★★★☆ (4星)</option>
+                                <option value="5">★★★★★ (5星)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addSuccessRateModifier" class="form-label">成功率加成</label>
+                            <input type="number" class="form-control" id="addSuccessRateModifier" step="0.01" min="0" value="0.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addRareChanceModifier" class="form-label">稀有鱼几率加成</label>
+                            <input type="number" class="form-control" id="addRareChanceModifier" step="0.01" min="0" value="0.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addGarbageReductionModifier" class="form-label">垃圾减少加成</label>
+                            <input type="number" class="form-control" id="addGarbageReductionModifier" step="0.01" min="0" value="0.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addValueModifier" class="form-label">价值加成</label>
+                            <input type="number" class="form-control" id="addValueModifier" step="0.01" min="1" value="1.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addQuantityModifier" class="form-label">数量加成</label>
+                            <input type="number" class="form-control" id="addQuantityModifier" step="0.01" min="1" value="1.0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addIsConsumable" class="form-label">是否消耗</label>
+                            <select class="form-select" id="addIsConsumable">
+                                <option value="1">是</option>
+                                <option value="0">否</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveAddBait">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑鱼饵模态框 -->
+    <div class="modal fade" id="editBaitModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑鱼饵</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editBaitForm">
+                        <input type="hidden" id="editId">
+                        <div class="mb-3">
+                            <label for="editName" class="form-label">名称</label>
+                            <input type="text" class="form-control" id="editName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editDescription" class="form-label">描述</label>
+                            <textarea class="form-control" id="editDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRarity" class="form-label">稀有度</label>
+                            <select class="form-select" id="editRarity" required>
+                                <option value="1">★☆☆☆☆ (1星)</option>
+                                <option value="2">★★☆☆☆ (2星)</option>
+                                <option value="3">★★★☆☆ (3星)</option>
+                                <option value="4">★★★★☆ (4星)</option>
+                                <option value="5">★★★★★ (5星)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editEffectDescription" class="form-label">效果描述</label>
+                            <textarea class="form-control" id="editEffectDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCost" class="form-label">购买价格(金币)</label>
+                            <input type="number" class="form-control" id="editCost" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editDurationMinutes" class="form-label">持续时间(分钟)</label>
+                            <input type="number" class="form-control" id="editDurationMinutes" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRequiredRodRarity" class="form-label">所需鱼竿稀有度</label>
+                            <select class="form-select" id="editRequiredRodRarity">
+                                <option value="0">无限制</option>
+                                <option value="1">★☆☆☆☆ (1星)</option>
+                                <option value="2">★★☆☆☆ (2星)</option>
+                                <option value="3">★★★☆☆ (3星)</option>
+                                <option value="4">★★★★☆ (4星)</option>
+                                <option value="5">★★★★★ (5星)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editSuccessRateModifier" class="form-label">成功率加成</label>
+                            <input type="number" class="form-control" id="editSuccessRateModifier" step="0.01" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRareChanceModifier" class="form-label">稀有鱼几率加成</label>
+                            <input type="number" class="form-control" id="editRareChanceModifier" step="0.01" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editGarbageReductionModifier" class="form-label">垃圾减少加成</label>
+                            <input type="number" class="form-control" id="editGarbageReductionModifier" step="0.01" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editValueModifier" class="form-label">价值加成</label>
+                            <input type="number" class="form-control" id="editValueModifier" step="0.01" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editQuantityModifier" class="form-label">数量加成</label>
+                            <input type="number" class="form-control" id="editQuantityModifier" step="0.01" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editIsConsumable" class="form-label">是否消耗</label>
+                            <select class="form-select" id="editIsConsumable">
+                                <option value="1">是</option>
+                                <option value="0">否</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveEditBait">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allBaitData = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+
+        // 获取鱼饵数据并渲染到页面
+        async function loadBaitData() {
+            try {
+                const response = await fetch('/api/baits');
+                allBaitData = await response.json();
+
+                renderBaitTable(allBaitData);
+            } catch (error) {
+                console.error('加载鱼饵数据失败:', error);
+            }
+        }
+
+        // 渲染鱼饵表格
+        function renderBaitTable(baitData) {
+            const tbody = document.getElementById('bait-table-body');
+            tbody.innerHTML = '';
+
+            if (baitData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="15" class="text-center">没有找到匹配的鱼饵数据</td></tr>';
+                return;
+            }
+
+            // 分页处理
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, baitData.length);
+            const pageData = baitData.slice(startIndex, endIndex);
+
+            pageData.forEach(bait => {
+                const rarityStars = '★'.repeat(bait.rarity) + '☆'.repeat(5 - bait.rarity);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${bait.id}</td>
+                    <td>${bait.name}</td>
+                    <td>${bait.description}</td>
+                    <td><span class="star">${rarityStars}</span></td>
+                    <td>${bait.effect_description}</td>
+                    <td>${bait.cost}</td>
+                    <td>${bait.duration_minutes}</td>
+                    <td>${bait.required_rod_rarity || '无限制'}</td>
+                    <td>+${bait.success_rate_modifier}</td>
+                    <td>+${bait.rare_chance_modifier}</td>
+                    <td>+${bait.garbage_reduction_modifier}</td>
+                    <td>+${(bait.value_modifier - 1) * 100}%</td>
+                    <td>+${(bait.quantity_modifier - 1) * 100}%</td>
+                    <td>${bait.is_consumable ? '是' : '否'}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-sm btn-warning edit-btn" data-id="${bait.id}">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-btn" data-id="${bait.id}">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // 绑定编辑和删除按钮事件
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const baitId = parseInt(this.getAttribute('data-id'));
+                    editBait(baitId);
+                });
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const baitId = parseInt(this.getAttribute('data-id'));
+                    deleteBait(baitId);
+                });
+            });
+
+            // 渲染分页控件
+            renderPagination(baitData.length);
+        }
+
+        // 渲染分页控件
+        function renderPagination(totalItems) {
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // 上一页
+            const prevItem = document.createElement('li');
+            prevItem.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevItem.innerHTML = `<a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>`;
+            prevItem.querySelector('a').addEventListener('click', function(e) {
+                e.preventDefault();
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderBaitTable(allBaitData);
+                }
+            });
+            pagination.appendChild(prevItem);
+
+            // 页码
+            for (let i = 1; i <= totalPages; i++) {
+                const pageItem = document.createElement('li');
+                pageItem.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                pageItem.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                pageItem.querySelector('a').addEventListener('click', function(e) {
+                    e.preventDefault();
+                    currentPage = i;
+                    renderBaitTable(allBaitData);
+                });
+                pagination.appendChild(pageItem);
+            }
+
+            // 下一页
+            const nextItem = document.createElement('li');
+            nextItem.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextItem.innerHTML = `<a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>`;
+            nextItem.querySelector('a').addEventListener('click', function(e) {
+                e.preventDefault();
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderBaitTable(allBaitData);
+                }
+            });
+            pagination.appendChild(nextItem);
+        }
+
+        // 搜索功能
+        function searchBait() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            let filteredData = allBaitData;
+
+            // 按名称搜索
+            if (searchTerm) {
+                filteredData = filteredData.filter(bait =>
+                    bait.name.toLowerCase().includes(searchTerm) ||
+                    bait.description.toLowerCase().includes(searchTerm) ||
+                    bait.effect_description.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            currentPage = 1;
+            renderBaitTable(filteredData);
+        }
+
+        // 添加鱼饵
+        async function addBait() {
+            const name = document.getElementById('addName').value;
+            const description = document.getElementById('addDescription').value;
+            const rarity = parseInt(document.getElementById('addRarity').value);
+            const effectDescription = document.getElementById('addEffectDescription').value;
+            const cost = parseInt(document.getElementById('addCost').value);
+            const durationMinutes = parseInt(document.getElementById('addDurationMinutes').value);
+            const requiredRodRarity = parseInt(document.getElementById('addRequiredRodRarity').value);
+            const successRateModifier = parseFloat(document.getElementById('addSuccessRateModifier').value);
+            const rareChanceModifier = parseFloat(document.getElementById('addRareChanceModifier').value);
+            const garbageReductionModifier = parseFloat(document.getElementById('addGarbageReductionModifier').value);
+            const valueModifier = parseFloat(document.getElementById('addValueModifier').value);
+            const quantityModifier = parseFloat(document.getElementById('addQuantityModifier').value);
+            const isConsumable = parseInt(document.getElementById('addIsConsumable').value);
+
+            if (!name || !rarity || !cost) {
+                alert('请填写所有必填字段');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/baits', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        rarity: rarity,
+                        effect_description: effectDescription,
+                        cost: cost,
+                        duration_minutes: durationMinutes,
+                        required_rod_rarity: requiredRodRarity,
+                        success_rate_modifier: successRateModifier,
+                        rare_chance_modifier: rareChanceModifier,
+                        garbage_reduction_modifier: garbageReductionModifier,
+                        value_modifier: valueModifier,
+                        quantity_modifier: quantityModifier,
+                        is_consumable: Boolean(isConsumable)
+                    })
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadBaitData();
+                    // 关闭模态框
+                    document.getElementById('addBaitModal').querySelector('.btn-close').click();
+                    // 清空表单
+                    document.getElementById('addBaitForm').reset();
+                } else {
+                    const result = await response.json();
+                    alert('添加失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('添加鱼饵失败:', error);
+                alert('添加失败，请查看控制台错误信息');
+            }
+        }
+
+        // 编辑鱼饵
+        function editBait(baitId) {
+            const bait = allBaitData.find(b => b.id === baitId);
+            if (!bait) return;
+
+            document.getElementById('editId').value = bait.id;
+            document.getElementById('editName').value = bait.name;
+            document.getElementById('editDescription').value = bait.description;
+            document.getElementById('editRarity').value = bait.rarity;
+            document.getElementById('editEffectDescription').value = bait.effect_description;
+            document.getElementById('editCost').value = bait.cost;
+            document.getElementById('editDurationMinutes').value = bait.duration_minutes;
+            document.getElementById('editRequiredRodRarity').value = bait.required_rod_rarity || 0;
+            document.getElementById('editSuccessRateModifier').value = bait.success_rate_modifier;
+            document.getElementById('editRareChanceModifier').value = bait.rare_chance_modifier;
+            document.getElementById('editGarbageReductionModifier').value = bait.garbage_reduction_modifier;
+            document.getElementById('editValueModifier').value = bait.value_modifier;
+            document.getElementById('editQuantityModifier').value = bait.quantity_modifier;
+            document.getElementById('editIsConsumable').value = bait.is_consumable ? 1 : 0;
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('editBaitModal'));
+            modal.show();
+        }
+
+        // 保存编辑的鱼饵
+        async function saveEditBait() {
+            const id = parseInt(document.getElementById('editId').value);
+            const name = document.getElementById('editName').value;
+            const description = document.getElementById('editDescription').value;
+            const rarity = parseInt(document.getElementById('editRarity').value);
+            const effectDescription = document.getElementById('editEffectDescription').value;
+            const cost = parseInt(document.getElementById('editCost').value);
+            const durationMinutes = parseInt(document.getElementById('editDurationMinutes').value);
+            const requiredRodRarity = parseInt(document.getElementById('editRequiredRodRarity').value);
+            const successRateModifier = parseFloat(document.getElementById('editSuccessRateModifier').value);
+            const rareChanceModifier = parseFloat(document.getElementById('editRareChanceModifier').value);
+            const garbageReductionModifier = parseFloat(document.getElementById('editGarbageReductionModifier').value);
+            const valueModifier = parseFloat(document.getElementById('editValueModifier').value);
+            const quantityModifier = parseFloat(document.getElementById('editQuantityModifier').value);
+            const isConsumable = parseInt(document.getElementById('editIsConsumable').value);
+
+            if (!name || !rarity || !cost) {
+                alert('请填写所有必填字段');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/baits/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        rarity: rarity,
+                        effect_description: effectDescription,
+                        cost: cost,
+                        duration_minutes: durationMinutes,
+                        required_rod_rarity: requiredRodRarity,
+                        success_rate_modifier: successRateModifier,
+                        rare_chance_modifier: rareChanceModifier,
+                        garbage_reduction_modifier: garbageReductionModifier,
+                        value_modifier: valueModifier,
+                        quantity_modifier: quantityModifier,
+                        is_consumable: Boolean(isConsumable)
+                    })
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadBaitData();
+                    // 关闭模态框
+                    document.getElementById('editBaitModal').querySelector('.btn-close').click();
+                } else {
+                    const result = await response.json();
+                    alert('编辑失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('编辑鱼饵失败:', error);
+                alert('编辑失败，请查看控制台错误信息');
+            }
+        }
+
+        // 删除鱼饵
+        async function deleteBait(baitId) {
+            if (!confirm('确定要删除这条鱼饵吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/baits/${baitId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadBaitData();
+                } else {
+                    const result = await response.json();
+                    alert('删除失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('删除鱼饵失败:', error);
+                alert('删除失败，请查看控制台错误信息');
+            }
+        }
+
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBaitData();
+
+            // 绑定搜索事件
+            document.getElementById('searchButton').addEventListener('click', searchBait);
+            document.getElementById('searchInput').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    searchBait();
+                }
+            });
+
+            // 绑定添加鱼饵事件
+            document.getElementById('saveAddBait').addEventListener('click', addBait);
+
+            // 绑定保存编辑鱼饵事件
+            document.getElementById('saveEditBait').addEventListener('click', saveEditBait);
+        });
+    </script>
+</body>
+</html>

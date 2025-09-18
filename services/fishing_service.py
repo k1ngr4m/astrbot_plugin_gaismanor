@@ -166,6 +166,15 @@ class FishingService:
             (user.user_id, caught_fish.id, final_weight, final_value, True, int(time.time()))
         )
 
+        # 更新用户数据到数据库
+        self.db.execute_query(
+            """UPDATE users SET
+                gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
+                WHERE user_id=?""",
+            (user.gold, user.fishing_count, user.last_fishing_time,
+             user.total_fish_weight, user.total_income, user.user_id)
+        )
+
         # 返回钓鱼结果
         message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币"
         return FishingResult(success=True, fish=caught_fish, weight=final_weight, value=final_value, message=message)
