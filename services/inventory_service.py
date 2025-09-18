@@ -9,6 +9,7 @@ import time
 class InventoryService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.default_fish_capacity = 50  # 默认鱼塘容量为50
 
     async def fish_pond_command(self, event: AstrMessageEvent):
         """鱼塘命令"""
