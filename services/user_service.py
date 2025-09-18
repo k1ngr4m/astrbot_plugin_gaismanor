@@ -2,11 +2,13 @@ from typing import Optional
 from ..models.user import User
 from ..models.database import DatabaseManager
 from astrbot.api.event import AstrMessageEvent
+from .achievement_service import AchievementService
 import time
 
 class UserService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.achievement_service = AchievementService(db_manager)
 
     async def register_command(self, event: AstrMessageEvent):
         """用户注册命令"""
@@ -70,7 +72,19 @@ class UserService:
             (user_id, today, streak, reward_gold, int(time.time()))
         )
 
-        yield event.plain_result(f"签到成功！\n\n获得金币: {reward_gold}\n\n连续签到: {streak}天")
+        # 检查成就
+        newly_unlocked = self.achievement_service.check_achievements(user)
+
+        # 构造返回消息
+        message = f"签到成功！\n\n获得金币: {reward_gold}\n\n连续签到: {streak}天"
+
+        # 如果有新解锁的成就，添加到消息中
+        if newly_unlocked:
+            message += "\n\n🎉 恭喜解锁新成就！\n"
+            for achievement in newly_unlocked:
+                message += f"  · {achievement.name}: {achievement.description}\n"
+
+        yield event.plain_result(message)
 
     async def gold_command(self, event: AstrMessageEvent):
         """查看金币命令"""

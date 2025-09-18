@@ -11,6 +11,7 @@ from .services.gacha_service import GachaService
 from .services.other_service import OtherService
 from .services.fishing_service import FishingService
 from .services.equipment_service import EquipmentService
+from .services.achievement_service import AchievementService
 import threading
 import time
 import os
@@ -31,6 +32,7 @@ class GaismanorPlugin(Star):
         self.other_service = OtherService(self.db_manager)
         self.fishing_service = FishingService(self.db_manager)
         self.equipment_service = EquipmentService(self.db_manager)
+        self.achievement_service = AchievementService(self.db_manager)
 
         # 获取配置
         self.secret_key = config.get("secret_key", "SecretKey")
@@ -89,6 +91,12 @@ class GaismanorPlugin(Star):
     async def auto_fishing_command(self, event: AstrMessageEvent):
         async for result in self.other_service.auto_fishing_command(event):
             yield result
+
+    @filter.command("钓鱼记录")
+    async def fishing_log_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.fishing_log_command(event):
+            yield result
+
 
     # 鱼塘相关
     @filter.command("鱼塘")
@@ -197,6 +205,16 @@ class GaismanorPlugin(Star):
         async for result in self.other_service.fish_gallery_command(event):
             yield result
 
+    @filter.command("查看成就")
+    async def view_achievements_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.view_achievements_command(event):
+            yield result
+
+    @filter.command("查看称号")
+    async def view_titles_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.view_titles_command(event):
+            yield result
+
     # 帮助命令
     @filter.command("钓鱼帮助")
     async def help_command(self, event: AstrMessageEvent):
@@ -207,6 +225,8 @@ class GaismanorPlugin(Star):
             "  /钓鱼 - 开始钓鱼",
             "  /签到 - 每日签到",
             "  /金币 - 查看金币余额",
+            "  /自动钓鱼 - 开启/关闭自动钓鱼",
+            "  /钓鱼记录 - 查看钓鱼历史记录",
             "",
             "🎒 背包相关:",
             "  /鱼塘 - 查看鱼塘",
@@ -235,10 +255,11 @@ class GaismanorPlugin(Star):
             "  /查看卡池 <卡池ID> - 查看卡池详情",
             "",
             "⚙️ 其他功能:",
-            "  /自动钓鱼 - 开启/关闭自动钓鱼",
             "  /排行榜 - 查看金币排行榜",
             "  /鱼类图鉴 - 查看已捕获鱼类图鉴",
-            "  /帮助 - 显示此帮助信息"
+            "  /查看成就 - 查看已解锁和未解锁的成就",
+            "  /查看称号 - 查看已获得的称号",
+            "  /钓鱼帮助 - 显示此帮助信息"
         ]
 
         help_text = "🎮 Gaismanor 庄园插件命令列表:\n\n" + "\n".join(commands)

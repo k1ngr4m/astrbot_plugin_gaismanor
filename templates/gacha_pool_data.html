@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡池管理 - 庄园管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .pool-card {
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .pool-card:hover {
+            transform: translateY(-5px);
+        }
+        .rarity-1 { border-left: 5px solid #cccccc; }
+        .rarity-2 { border-left: 5px solid #00cc66; }
+        .rarity-3 { border-left: 5px solid #3399ff; }
+        .rarity-4 { border-left: 5px solid #cc66ff; }
+        .rarity-5 { border-left: 5px solid #ffcc00; }
+        .star { color: #ffcc00; }
+        .navbar {
+            margin-bottom: 30px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .rarity-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .rarity-1-badge { background-color: #cccccc; color: #000; }
+        .rarity-2-badge { background-color: #00cc66; color: #fff; }
+        .rarity-3-badge { background-color: #3399ff; color: #fff; }
+        .rarity-4-badge { background-color: #cc66ff; color: #fff; }
+        .rarity-5-badge { background-color: #ffcc00; color: #000; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-fish"></i> 庄园管理系统</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/"><i class="fas fa-home"></i> 首页</a>
+                <a class="nav-link" href="/fish"><i class="fas fa-fish"></i> 鱼类管理</a>
+                <a class="nav-link" href="/rods"><i class="fas fa-fishing-rod"></i> 鱼竿管理</a>
+                <a class="nav-link" href="/accessories"><i class="fas fa-gem"></i> 饰品管理</a>
+                <a class="nav-link" href="/baits"><i class="fas fa-bug"></i> 鱼饵管理</a>
+                <a class="nav-link active" href="/gacha_pools"><i class="fas fa-coins"></i> 卡池管理</a>
+                <a class="nav-link" href="/users"><i class="fas fa-users"></i> 用户管理</a>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> 登出</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="mb-4"><i class="fas fa-coins"></i> 卡池管理</h1>
+
+        <!-- 卡池数据展示 -->
+        <div id="pool-container">
+            <!-- 卡池数据将通过JavaScript动态加载 -->
+        </div>
+    </div>
+
+    <!-- 编辑卡池模态框 -->
+    <div class="modal fade" id="editPoolModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑卡池</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editPoolForm">
+                        <input type="hidden" id="editPoolId">
+                        <div class="mb-3">
+                            <label for="editPoolName" class="form-label">卡池名称</label>
+                            <input type="text" class="form-control" id="editPoolName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editPoolDescription" class="form-label">描述</label>
+                            <textarea class="form-control" id="editPoolDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">稀有度概率</label>
+                            <div id="rarityWeightsContainer">
+                                <!-- 稀有度概率将通过JavaScript动态加载 -->
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">卡池物品</label>
+                            <div id="poolItemsContainer">
+                                <!-- 卡池物品将通过JavaScript动态加载 -->
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveEditPool">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allPoolData = [];
+
+        // 获取卡池数据并渲染到页面
+        async function loadPoolData() {
+            try {
+                const response = await fetch('/api/gacha_pools');
+                allPoolData = await response.json();
+
+                renderPoolData(allPoolData);
+            } catch (error) {
+                console.error('加载卡池数据失败:', error);
+            }
+        }
+
+        // 渲染卡池数据
+        function renderPoolData(poolData) {
+            const container = document.getElementById('pool-container');
+            container.innerHTML = '';
+
+            if (poolData.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">没有找到卡池数据</div>';
+                return;
+            }
+
+            poolData.forEach(pool => {
+                const poolCard = document.createElement('div');
+                poolCard.className = 'card pool-card';
+
+                // 构建稀有度概率显示
+                let rarityWeightsHtml = '';
+                for (let rarity = 5; rarity >= 1; rarity--) {
+                    const weight = pool.rarity_weights[rarity] || 0;
+                    const stars = '★'.repeat(rarity);
+                    rarityWeightsHtml += `
+                        <div class="d-flex justify-content-between">
+                            <span>${stars} (${rarity}星)</span>
+                            <span>${weight}%</span>
+                        </div>
+                    `;
+                }
+
+                // 构建物品列表
+                let itemsHtml = '';
+                for (const [itemType, items] of Object.entries(pool.items)) {
+                    let typeLabel = '';
+                    switch(itemType) {
+                        case 'rod': typeLabel = '鱼竿'; break;
+                        case 'accessory': typeLabel = '饰品'; break;
+                        case 'bait': typeLabel = '鱼饵'; break;
+                        default: typeLabel = itemType;
+                    }
+
+                    itemsHtml += `<h6>${typeLabel}:</h6><ul>`;
+                    items.forEach(item => {
+                        const stars = '★'.repeat(item.rarity);
+                        itemsHtml += `<li>${item.name} <span class="rarity-badge rarity-${item.rarity}-badge">${stars}</span></li>`;
+                    });
+                    itemsHtml += '</ul>';
+                }
+
+                poolCard.innerHTML = `
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">${pool.name} (ID: ${pool.id})</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">${pool.description}</p>
+
+                        <h6>稀有度概率:</h6>
+                        <div class="border p-3 mb-3">
+                            ${rarityWeightsHtml}
+                        </div>
+
+                        <h6>包含物品:</h6>
+                        <div class="border p-3">
+                            ${itemsHtml}
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-warning edit-pool-btn" data-id="${pool.id}">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(poolCard);
+            });
+
+            // 绑定编辑按钮事件
+            document.querySelectorAll('.edit-pool-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const poolId = parseInt(this.getAttribute('data-id'));
+                    editPool(poolId);
+                });
+            });
+        }
+
+        // 编辑卡池
+        function editPool(poolId) {
+            const pool = allPoolData.find(p => p.id === poolId);
+            if (!pool) return;
+
+            document.getElementById('editPoolId').value = pool.id;
+            document.getElementById('editPoolName').value = pool.name;
+            document.getElementById('editPoolDescription').value = pool.description;
+
+            // 渲染稀有度概率编辑控件
+            const weightsContainer = document.getElementById('rarityWeightsContainer');
+            let weightsHtml = '';
+            for (let rarity = 5; rarity >= 1; rarity--) {
+                const weight = pool.rarity_weights[rarity] || 0;
+                const stars = '★'.repeat(rarity);
+                weightsHtml += `
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">${stars} (${rarity}星)</span>
+                        <input type="number" class="form-control rarity-weight-input"
+                               data-rarity="${rarity}" value="${weight}" min="0" max="100">
+                        <span class="input-group-text">%</span>
+                    </div>
+                `;
+            }
+            weightsContainer.innerHTML = weightsHtml;
+
+            // 渲染物品选择控件
+            renderPoolItems(pool);
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('editPoolModal'));
+            modal.show();
+        }
+
+        // 渲染卡池物品选择控件
+        async function renderPoolItems(pool) {
+            const itemsContainer = document.getElementById('poolItemsContainer');
+            itemsContainer.innerHTML = '<div class="text-center">加载中...</div>';
+
+            try {
+                // 获取所有可用物品
+                const response = await fetch('/api/gacha_pool_items');
+                const allItems = await response.json();
+
+                // 构建物品选择界面
+                let itemsHtml = '<ul class="nav nav-tabs" id="itemTypeTabs" role="tablist">';
+                itemsHtml += '<li class="nav-item" role="presentation"><a class="nav-link active" id="rod-tab" data-bs-toggle="tab" href="#rod-items" role="tab">鱼竿</a></li>';
+                itemsHtml += '<li class="nav-item" role="presentation"><a class="nav-link" id="accessory-tab" data-bs-toggle="tab" href="#accessory-items" role="tab">饰品</a></li>';
+                itemsHtml += '<li class="nav-item" role="presentation"><a class="nav-link" id="bait-tab" data-bs-toggle="tab" href="#bait-items" role="tab">鱼饵</a></li>';
+                itemsHtml += '</ul>';
+
+                itemsHtml += '<div class="tab-content" id="itemTypeTabsContent">';
+
+                // 鱼竿选项卡
+                itemsHtml += '<div class="tab-pane fade show active" id="rod-items" role="tabpanel">';
+                itemsHtml += '<div class="row">';
+                allItems.rods.forEach(rod => {
+                    const isChecked = pool.items.rod && pool.items.rod.includes(rod.id);
+                    const stars = '★'.repeat(rod.rarity);
+                    itemsHtml += `
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input item-checkbox" type="checkbox"
+                                       data-item-type="rod" data-item-id="${rod.id}"
+                                       id="rod-${rod.id}" ${isChecked ? 'checked' : ''}>
+                                <label class="form-check-label" for="rod-${rod.id}">
+                                    ${rod.name} <span class="rarity-badge rarity-${rod.rarity}-badge">${stars}</span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                itemsHtml += '</div></div>';
+
+                // 饰品选项卡
+                itemsHtml += '<div class="tab-pane fade" id="accessory-items" role="tabpanel">';
+                itemsHtml += '<div class="row">';
+                allItems.accessories.forEach(accessory => {
+                    const isChecked = pool.items.accessory && pool.items.accessory.includes(accessory.id);
+                    const stars = '★'.repeat(accessory.rarity);
+                    itemsHtml += `
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input item-checkbox" type="checkbox"
+                                       data-item-type="accessory" data-item-id="${accessory.id}"
+                                       id="accessory-${accessory.id}" ${isChecked ? 'checked' : ''}>
+                                <label class="form-check-label" for="accessory-${accessory.id}">
+                                    ${accessory.name} <span class="rarity-badge rarity-${accessory.rarity}-badge">${stars}</span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                itemsHtml += '</div></div>';
+
+                // 鱼饵选项卡
+                itemsHtml += '<div class="tab-pane fade" id="bait-items" role="tabpanel">';
+                itemsHtml += '<div class="row">';
+                allItems.baits.forEach(bait => {
+                    const isChecked = pool.items.bait && pool.items.bait.includes(bait.id);
+                    const stars = '★'.repeat(bait.rarity);
+                    itemsHtml += `
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input item-checkbox" type="checkbox"
+                                       data-item-type="bait" data-item-id="${bait.id}"
+                                       id="bait-${bait.id}" ${isChecked ? 'checked' : ''}>
+                                <label class="form-check-label" for="bait-${bait.id}">
+                                    ${bait.name} <span class="rarity-badge rarity-${bait.rarity}-badge">${stars}</span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                itemsHtml += '</div></div>';
+
+                itemsHtml += '</div>';
+
+                itemsContainer.innerHTML = itemsHtml;
+            } catch (error) {
+                console.error('加载物品列表失败:', error);
+                itemsContainer.innerHTML = '<div class="alert alert-danger">加载物品列表失败</div>';
+            }
+        }
+
+        // 保存编辑的卡池
+        async function saveEditPool() {
+            const poolId = document.getElementById('editPoolId').value;
+            const name = document.getElementById('editPoolName').value;
+            const description = document.getElementById('editPoolDescription').value;
+
+            // 获取稀有度权重
+            const rarityWeights = {};
+            document.querySelectorAll('.rarity-weight-input').forEach(input => {
+                const rarity = input.getAttribute('data-rarity');
+                rarityWeights[rarity] = parseInt(input.value) || 0;
+            });
+
+            // 获取选中的物品
+            const items = {
+                rod: [],
+                accessory: [],
+                bait: []
+            };
+            document.querySelectorAll('.item-checkbox:checked').forEach(checkbox => {
+                const itemType = checkbox.getAttribute('data-item-type');
+                const itemId = parseInt(checkbox.getAttribute('data-item-id'));
+                items[itemType].push(itemId);
+            });
+
+            try {
+                const response = await fetch(`/api/gacha_pools/${poolId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        rarity_weights: rarityWeights,
+                        items: items
+                    })
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadPoolData();
+                    // 关闭模态框
+                    document.getElementById('editPoolModal').querySelector('.btn-close').click();
+                } else {
+                    const result = await response.json();
+                    alert('编辑失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('编辑卡池失败:', error);
+                alert('编辑失败，请查看控制台错误信息');
+            }
+        }
+
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPoolData();
+
+            // 绑定保存编辑卡池事件
+            document.getElementById('saveEditPool').addEventListener('click', saveEditPool);
+        });
+    </script>
+</body>
+</html>

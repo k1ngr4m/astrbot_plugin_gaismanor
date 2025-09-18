@@ -4,12 +4,14 @@ from astrbot import logger
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate, FishingResult
 from ..models.database import DatabaseManager
+from .achievement_service import AchievementService
 import random
 import time
 
 class FishingService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.achievement_service = AchievementService(db_manager)
 
     def get_fish_templates(self) -> List[FishTemplate]:
         """获取所有鱼类模板"""
@@ -176,8 +178,18 @@ class FishingService:
              user.total_fish_weight, user.total_income, user.user_id)
         )
 
-        # 返回钓鱼结果
+        # 检查成就
+        newly_unlocked = self.achievement_service.check_achievements(user)
+
+        # 构造返回消息，包含成就解锁信息
         message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币"
+
+        # 如果有新解锁的成就，添加到消息中
+        if newly_unlocked:
+            message += "\n\n🎉 恭喜解锁新成就！\n"
+            for achievement in newly_unlocked:
+                message += f"  · {achievement.name}: {achievement.description}\n"
+
         return FishingResult(success=True, fish=caught_fish, weight=final_weight, value=final_value, message=message)
 
     def _get_equipped_rod(self, user_id: str) -> Optional[RodTemplate]:

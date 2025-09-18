@@ -383,6 +383,7 @@ class DatabaseManager:
 
         # 插入卡池数据
         from ..data.initial_data import GACHA_POOL_DATA, GACHA_POOL_RARITY_WEIGHTS, GACHA_POOL_ITEMS
+        from ..data.initial_data import ACHIEVEMENT_DATA, TITLE_DATA
         current_time = int(time.time())
 
         # 插入卡池基本信息
@@ -417,6 +418,27 @@ class DatabaseManager:
                                VALUES (?, ?, ?, ?, ?, ?)""",
                             (pool_id, item_config[1], item_config[2], item_config[3], 100, current_time)
                         )
+
+        # 插入成就数据
+        for achievement in ACHIEVEMENT_DATA:
+            self.execute_query(
+                """INSERT INTO achievements
+                   (id, name, description, condition_type, condition_value, reward_gold, reward_exp)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                achievement
+            )
+
+        # 插入称号数据 (使用TITLE_DATA格式)
+        for title in TITLE_DATA:
+            # TITLE_DATA格式: (id, name, description, display_format)
+            # 数据库格式: (id, name, description, condition_type, condition_value)
+            # 我们需要调整格式以匹配数据库表结构
+            self.execute_query(
+                """INSERT INTO titles
+                   (id, name, description, condition_type, condition_value)
+                   VALUES (?, ?, ?, '', 0)""",
+                (title[0], title[1], title[2])
+            )
 
     def execute_query(self, query: str, params: tuple = ()):
         """执行查询语句"""
