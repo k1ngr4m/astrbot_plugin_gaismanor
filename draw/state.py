@@ -228,9 +228,8 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         acc_name = current_accessory['name'][:15] + "..." if len(current_accessory['name']) > 15 else current_accessory['name']
         draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_primary)
         rarity = current_accessory.get('rarity', 1)
-        refined_level = current_accessory.get('refine_level', 1)
-        star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
-        draw.text((left_col_x, equipment_row6_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
+        star_color = rare_color if rarity > 4 else warning_color if rarity > 3 else text_secondary
+        draw.text((left_col_x, equipment_row6_y), f"{'★' * min(rarity, 5)}", font=tiny_font, fill=star_color)
     else:
         draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=text_muted)
 
@@ -415,8 +414,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         if accessory_template:
             current_accessory = {
                 'name': accessory_template.name,
-                'rarity': accessory_template.rarity,
-                'refine_level': accessory_instance.refine_level
+                'rarity': accessory_template.rarity
             }
 
     # 获取当前使用的鱼饵

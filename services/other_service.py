@@ -343,7 +343,7 @@ class OtherService:
 
         # 获取用户装备的饰品
         equipped_accessory = self.db.fetch_one("""
-            SELECT at.name, at.rarity, uai.level as refine_level
+            SELECT at.name, at.rarity
             FROM user_accessory_instances uai
             JOIN accessory_templates at ON uai.accessory_template_id = at.id
             WHERE uai.user_id = ? AND uai.is_equipped = TRUE
