@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商店管理 - 庄园管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .navbar {
+            margin-bottom: 30px;
+        }
+        .shop-section {
+            margin-bottom: 40px;
+        }
+        .item-card {
+            transition: transform 0.2s;
+            margin-bottom: 20px;
+        }
+        .item-card:hover {
+            transform: translateY(-5px);
+        }
+        .rarity-1 { border-left: 5px solid #cccccc; }
+        .rarity-2 { border-left: 5px solid #00cc66; }
+        .rarity-3 { border-left: 5px solid #3399ff; }
+        .rarity-4 { border-left: 5px solid #cc66ff; }
+        .rarity-5 { border-left: 5px solid #ffcc00; }
+        .star { color: #ffcc00; }
+        .shop-item {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-fish"></i> 庄园管理系统</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/"><i class="fas fa-home"></i> 首页</a>
+                <a class="nav-link" href="/fish"><i class="fas fa-fish"></i> 鱼类管理</a>
+                <a class="nav-link" href="/rods"><i class="fas fa-fishing-rod"></i> 鱼竿管理</a>
+                <a class="nav-link" href="/accessories"><i class="fas fa-gem"></i> 饰品管理</a>
+                <a class="nav-link" href="/baits"><i class="fas fa-bug"></i> 鱼饵管理</a>
+                <a class="nav-link active" href="/shop"><i class="fas fa-shopping-cart"></i> 商店管理</a>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> 登出</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="mb-4"><i class="fas fa-shopping-cart"></i> 商店管理</h1>
+
+        <!-- 鱼竿商店管理 -->
+        <div class="shop-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3><i class="fas fa-fishing-rod"></i> 鱼竿商店</h3>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRodToShopModal">
+                    <i class="fas fa-plus"></i> 添加鱼竿到商店
+                </button>
+            </div>
+
+            <div id="rod-shop-items" class="row">
+                <!-- 鱼竿商店物品将通过JavaScript动态加载 -->
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 鱼饵商店管理 -->
+        <div class="shop-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3><i class="fas fa-bug"></i> 鱼饵商店</h3>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBaitToShopModal">
+                    <i class="fas fa-plus"></i> 添加鱼饵到商店
+                </button>
+            </div>
+
+            <div id="bait-shop-items" class="row">
+                <!-- 鱼饵商店物品将通过JavaScript动态加载 -->
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加鱼竿到商店模态框 -->
+    <div class="modal fade" id="addRodToShopModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加鱼竿到商店</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="rodSearchInput" class="form-label">搜索鱼竿</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="rodSearchInput" placeholder="搜索鱼竿名称...">
+                            <button class="btn btn-outline-secondary" type="button" id="rodSearchButton">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>选择</th>
+                                    <th>ID</th>
+                                    <th>名称</th>
+                                    <th>稀有度</th>
+                                    <th>来源</th>
+                                    <th>价格</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rod-selection-table">
+                                <!-- 鱼竿数据将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveRodToShop">添加到商店</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加鱼饵到商店模态框 -->
+    <div class="modal fade" id="addBaitToShopModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加鱼饵到商店</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="baitSearchInput" class="form-label">搜索鱼饵</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="baitSearchInput" placeholder="搜索鱼饵名称...">
+                            <button class="btn btn-outline-secondary" type="button" id="baitSearchButton">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>选择</th>
+                                    <th>ID</th>
+                                    <th>名称</th>
+                                    <th>稀有度</th>
+                                    <th>价格</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bait-selection-table">
+                                <!-- 鱼饵数据将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveBaitToShop">添加到商店</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑鱼竿商店物品模态框 -->
+    <div class="modal fade" id="editRodShopItemModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑商店鱼竿</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editRodShopItemForm">
+                        <input type="hidden" id="editRodShopId">
+                        <div class="mb-3">
+                            <label for="editRodShopName" class="form-label">名称</label>
+                            <input type="text" class="form-control" id="editRodShopName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRodShopPrice" class="form-label">商店价格(金币)</label>
+                            <input type="number" class="form-control" id="editRodShopPrice" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRodShopStock" class="form-label">库存数量(0表示无限)</label>
+                            <input type="number" class="form-control" id="editRodShopStock" min="0" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editRodShopEnabled" class="form-label">是否上架</label>
+                            <select class="form-select" id="editRodShopEnabled">
+                                <option value="1">是</option>
+                                <option value="0">否</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveEditRodShopItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑鱼饵商店物品模态框 -->
+    <div class="modal fade" id="editBaitShopItemModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑商店鱼饵</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editBaitShopItemForm">
+                        <input type="hidden" id="editBaitShopId">
+                        <div class="mb-3">
+                            <label for="editBaitShopName" class="form-label">名称</label>
+                            <input type="text" class="form-control" id="editBaitShopName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editBaitShopPrice" class="form-label">商店价格(金币)</label>
+                            <input type="number" class="form-control" id="editBaitShopPrice" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editBaitShopStock" class="form-label">库存数量(0表示无限)</label>
+                            <input type="number" class="form-control" id="editBaitShopStock" min="0" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editBaitShopEnabled" class="form-label">是否上架</label>
+                            <select class="form-select" id="editBaitShopEnabled">
+                                <option value="1">是</option>
+                                <option value="0">否</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveEditBaitShopItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allRods = [];
+        let allBaits = [];
+        let shopRods = [];
+        let shopBaits = [];
+        let selectedRods = new Set();
+        let selectedBaits = new Set();
+
+        // 获取所有鱼竿数据
+        async function loadAllRods() {
+            try {
+                const response = await fetch('/api/rods');
+                allRods = await response.json();
+            } catch (error) {
+                console.error('加载鱼竿数据失败:', error);
+            }
+        }
+
+        // 获取所有鱼饵数据
+        async function loadAllBaits() {
+            try {
+                const response = await fetch('/api/baits');
+                allBaits = await response.json();
+            } catch (error) {
+                console.error('加载鱼饵数据失败:', error);
+            }
+        }
+
+        // 获取商店鱼竿数据
+        async function loadShopRods() {
+            try {
+                const response = await fetch('/api/shop/rods');
+                shopRods = await response.json();
+                renderRodShopItems();
+            } catch (error) {
+                console.error('加载商店鱼竿数据失败:', error);
+            }
+        }
+
+        // 获取商店鱼饵数据
+        async function loadShopBaits() {
+            try {
+                const response = await fetch('/api/shop/baits');
+                shopBaits = await response.json();
+                renderBaitShopItems();
+            } catch (error) {
+                console.error('加载商店鱼饵数据失败:', error);
+            }
+        }
+
+        // 渲染鱼竿商店物品
+        function renderRodShopItems() {
+            const container = document.getElementById('rod-shop-items');
+
+            if (shopRods.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">暂无鱼竿在商店中销售</p></div>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            shopRods.forEach(item => {
+                const rarityStars = '★'.repeat(item.rarity) + '☆'.repeat(5 - item.rarity);
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4';
+                col.innerHTML = `
+                    <div class="shop-item item-card">
+                        <div class="d-flex justify-content-between">
+                            <h5>${item.name}</h5>
+                            <span class="badge bg-primary">ID: ${item.id}</span>
+                        </div>
+                        <p class="text-muted">${item.description}</p>
+                        <p><strong>稀有度:</strong> <span class="star">${rarityStars}</span></p>
+                        <p><strong>价格:</strong> ${item.purchase_cost} 金币</p>
+                        <p><strong>状态:</strong> ${item.enabled ? '<span class="badge bg-success">销售中</span>' : '<span class="badge bg-secondary">已下架</span>'}</p>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-warning edit-rod-shop-btn" data-id="${item.id}">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <button class="btn btn-sm btn-danger remove-rod-shop-btn" data-id="${item.id}">
+                                <i class="fas fa-trash"></i> 移除
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+
+            // 绑定编辑和移除事件
+            document.querySelectorAll('.edit-rod-shop-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const rodId = parseInt(this.getAttribute('data-id'));
+                    editRodShopItem(rodId);
+                });
+            });
+
+            document.querySelectorAll('.remove-rod-shop-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const rodId = parseInt(this.getAttribute('data-id'));
+                    removeRodFromShop(rodId);
+                });
+            });
+        }
+
+        // 渲染鱼饵商店物品
+        function renderBaitShopItems() {
+            const container = document.getElementById('bait-shop-items');
+
+            if (shopBaits.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">暂无鱼饵在商店中销售</p></div>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            shopBaits.forEach(item => {
+                const rarityStars = '★'.repeat(item.rarity) + '☆'.repeat(5 - item.rarity);
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4';
+                col.innerHTML = `
+                    <div class="shop-item item-card">
+                        <div class="d-flex justify-content-between">
+                            <h5>${item.name}</h5>
+                        </div>
+                        <p class="text-muted">${item.description}</p>
+                        <p><strong>稀有度:</strong> <span class="star">${rarityStars}</span></p>
+                        <p><strong>价格:</strong> ${item.cost} 金币</p>
+                        <p><strong>状态:</strong> ${item.enabled ? '<span class="badge bg-success">销售中</span>' : '<span class="badge bg-secondary">已下架</span>'}</p>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-warning edit-bait-shop-btn" data-id="${item.id}">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <button class="btn btn-sm btn-danger remove-bait-shop-btn" data-id="${item.id}">
+                                <i class="fas fa-trash"></i> 移除
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+
+            // 绑定编辑和移除事件
+            document.querySelectorAll('.edit-bait-shop-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const baitId = parseInt(this.getAttribute('data-id'));
+                    editBaitShopItem(baitId);
+                });
+            });
+
+            document.querySelectorAll('.remove-bait-shop-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const baitId = parseInt(this.getAttribute('data-id'));
+                    removeBaitFromShop(baitId);
+                });
+            });
+        }
+
+        // 渲染鱼竿选择表格
+        function renderRodSelectionTable(rodData) {
+            const tbody = document.getElementById('rod-selection-table');
+            tbody.innerHTML = '';
+
+            if (rodData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">没有找到匹配的鱼竿数据</td></tr>';
+                return;
+            }
+
+            rodData.forEach(rod => {
+                // 检查该鱼竿是否已在商店中
+                const isInShop = shopRods.some(item => item.id === rod.id);
+                const rarityStars = '★'.repeat(rod.rarity) + '☆'.repeat(5 - rod.rarity);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="rod-checkbox" data-id="${rod.id}" ${isInShop ? 'disabled' : ''}>
+                    </td>
+                    <td>${rod.id}</td>
+                    <td>${rod.name}</td>
+                    <td><span class="star">${rarityStars}</span></td>
+                    <td>${rod.source}</td>
+                    <td>${rod.purchase_cost || 'N/A'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // 绑定复选框事件
+            document.querySelectorAll('.rod-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const rodId = parseInt(this.getAttribute('data-id'));
+                    if (this.checked) {
+                        selectedRods.add(rodId);
+                    } else {
+                        selectedRods.delete(rodId);
+                    }
+                });
+            });
+        }
+
+        // 渲染鱼饵选择表格
+        function renderBaitSelectionTable(baitData) {
+            const tbody = document.getElementById('bait-selection-table');
+            tbody.innerHTML = '';
+
+            if (baitData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">没有找到匹配的鱼饵数据</td></tr>';
+                return;
+            }
+
+            baitData.forEach(bait => {
+                // 检查该鱼饵是否已在商店中
+                const isInShop = shopBaits.some(item => item.id === bait.id);
+                const rarityStars = '★'.repeat(bait.rarity) + '☆'.repeat(5 - bait.rarity);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="bait-checkbox" data-id="${bait.id}" ${isInShop ? 'disabled' : ''}>
+                    </td>
+                    <td>${bait.id}</td>
+                    <td>${bait.name}</td>
+                    <td><span class="star">${rarityStars}</span></td>
+                    <td>${bait.cost}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // 绑定复选框事件
+            document.querySelectorAll('.bait-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const baitId = parseInt(this.getAttribute('data-id'));
+                    if (this.checked) {
+                        selectedBaits.add(baitId);
+                    } else {
+                        selectedBaits.delete(baitId);
+                    }
+                });
+            });
+        }
+
+        // 搜索鱼竿
+        function searchRods() {
+            const searchTerm = document.getElementById('rodSearchInput').value.toLowerCase();
+            let filteredData = allRods;
+
+            if (searchTerm) {
+                filteredData = filteredData.filter(rod =>
+                    rod.name.toLowerCase().includes(searchTerm) ||
+                    rod.description.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            renderRodSelectionTable(filteredData);
+        }
+
+        // 搜索鱼饵
+        function searchBaits() {
+            const searchTerm = document.getElementById('baitSearchInput').value.toLowerCase();
+            let filteredData = allBaits;
+
+            if (searchTerm) {
+                filteredData = filteredData.filter(bait =>
+                    bait.name.toLowerCase().includes(searchTerm) ||
+                    bait.description.toLowerCase().includes(searchTerm) ||
+                    bait.effect_description.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            renderBaitSelectionTable(filteredData);
+        }
+
+        // 添加鱼竿到商店
+        async function addRodsToShop() {
+            if (selectedRods.size === 0) {
+                alert('请选择要添加到商店的鱼竿');
+                return;
+            }
+
+            try {
+                const promises = Array.from(selectedRods).map(rodId => {
+                    return fetch('/api/shop/rods', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            rod_id: rodId,
+                            purchase_cost: allRods.find(r => r.id === rodId).purchase_cost || 0,
+                            stock: 0,
+                            enabled: true
+                        })
+                    });
+                });
+
+                const responses = await Promise.all(promises);
+                const allSuccessful = responses.every(response => response.ok);
+
+                if (allSuccessful) {
+                    // 重新加载数据
+                    await loadShopRods();
+                    // 清空选择
+                    selectedRods.clear();
+                    // 关闭模态框
+                    document.getElementById('addRodToShopModal').querySelector('.btn-close').click();
+                    alert('鱼竿已成功添加到商店');
+                } else {
+                    alert('添加失败，请重试');
+                }
+            } catch (error) {
+                console.error('添加鱼竿到商店失败:', error);
+                alert('添加失败，请查看控制台错误信息');
+            }
+        }
+
+        // 添加鱼饵到商店
+        async function addBaitsToShop() {
+            if (selectedBaits.size === 0) {
+                alert('请选择要添加到商店的鱼饵');
+                return;
+            }
+
+            try {
+                const promises = Array.from(selectedBaits).map(baitId => {
+                    return fetch('/api/shop/baits', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            bait_id: baitId,
+                            cost: allBaits.find(b => b.id === baitId).cost || 0,
+                            stock: 0,
+                            enabled: true
+                        })
+                    });
+                });
+
+                const responses = await Promise.all(promises);
+                const allSuccessful = responses.every(response => response.ok);
+
+                if (allSuccessful) {
+                    // 重新加载数据
+                    await loadShopBaits();
+                    // 清空选择
+                    selectedBaits.clear();
+                    // 关闭模态框
+                    document.getElementById('addBaitToShopModal').querySelector('.btn-close').click();
+                    alert('鱼饵已成功添加到商店');
+                } else {
+                    alert('添加失败，请重试');
+                }
+            } catch (error) {
+                console.error('添加鱼饵到商店失败:', error);
+                alert('添加失败，请查看控制台错误信息');
+            }
+        }
+
+        // 编辑商店鱼竿物品
+        function editRodShopItem(rodId) {
+            const shopItem = shopRods.find(item => item.id === rodId);
+            const rodTemplate = allRods.find(r => r.id === rodId);
+
+            if (!shopItem || !rodTemplate) return;
+
+            document.getElementById('editRodShopId').value = rodId;
+            document.getElementById('editRodShopName').value = rodTemplate.name;
+            document.getElementById('editRodShopPrice').value = shopItem.purchase_cost || rodTemplate.purchase_cost || 0;
+            document.getElementById('editRodShopStock').value = shopItem.stock || 0;
+            document.getElementById('editRodShopEnabled').value = shopItem.enabled ? 1 : 0;
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('editRodShopItemModal'));
+            modal.show();
+        }
+
+        // 保存编辑的商店鱼竿物品
+        async function saveEditRodShopItem() {
+            const rodId = parseInt(document.getElementById('editRodShopId').value);
+            const purchaseCost = parseInt(document.getElementById('editRodShopPrice').value);
+            const stock = parseInt(document.getElementById('editRodShopStock').value);
+            const enabled = parseInt(document.getElementById('editRodShopEnabled').value) === 1;
+
+            try {
+                const response = await fetch(`/api/shop/rods/${rodId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        purchase_cost: purchaseCost,
+                        stock: stock,
+                        enabled: enabled
+                    })
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadShopRods();
+                    // 关闭模态框
+                    document.getElementById('editRodShopItemModal').querySelector('.btn-close').click();
+                    alert('商店鱼竿信息已更新');
+                } else {
+                    const result = await response.json();
+                    alert('更新失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('更新商店鱼竿失败:', error);
+                alert('更新失败，请查看控制台错误信息');
+            }
+        }
+
+        // 编辑商店鱼饵物品
+        function editBaitShopItem(baitId) {
+            const shopItem = shopBaits.find(item => item.id === baitId);
+            const baitTemplate = allBaits.find(b => b.id === baitId);
+
+            if (!shopItem || !baitTemplate) return;
+
+            document.getElementById('editBaitShopId').value = baitId;
+            document.getElementById('editBaitShopName').value = baitTemplate.name;
+            document.getElementById('editBaitShopPrice').value = shopItem.cost || baitTemplate.cost || 0;
+            document.getElementById('editBaitShopStock').value = shopItem.stock || 0;
+            document.getElementById('editBaitShopEnabled').value = shopItem.enabled ? 1 : 0;
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('editBaitShopItemModal'));
+            modal.show();
+        }
+
+        // 保存编辑的商店鱼饵物品
+        async function saveEditBaitShopItem() {
+            const baitId = parseInt(document.getElementById('editBaitShopId').value);
+            const cost = parseInt(document.getElementById('editBaitShopPrice').value);
+            const stock = parseInt(document.getElementById('editBaitShopStock').value);
+            const enabled = parseInt(document.getElementById('editBaitShopEnabled').value) === 1;
+
+            try {
+                const response = await fetch(`/api/shop/baits/${baitId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        cost: cost,
+                        stock: stock,
+                        enabled: enabled
+                    })
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadShopBaits();
+                    // 关闭模态框
+                    document.getElementById('editBaitShopItemModal').querySelector('.btn-close').click();
+                    alert('商店鱼饵信息已更新');
+                } else {
+                    const result = await response.json();
+                    alert('更新失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('更新商店鱼饵失败:', error);
+                alert('更新失败，请查看控制台错误信息');
+            }
+        }
+
+        // 从商店移除鱼竿
+        async function removeRodFromShop(rodId) {
+            if (!confirm('确定要将该鱼竿从商店移除吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/shop/rods/${rodId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadShopRods();
+                    alert('鱼竿已从商店移除');
+                } else {
+                    const result = await response.json();
+                    alert('移除失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('从商店移除鱼竿失败:', error);
+                alert('移除失败，请查看控制台错误信息');
+            }
+        }
+
+        // 从商店移除鱼饵
+        async function removeBaitFromShop(baitId) {
+            if (!confirm('确定要将该鱼饵从商店移除吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/shop/baits/${baitId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // 重新加载数据
+                    await loadShopBaits();
+                    alert('鱼饵已从商店移除');
+                } else {
+                    const result = await response.json();
+                    alert('移除失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('从商店移除鱼饵失败:', error);
+                alert('移除失败，请查看控制台错误信息');
+            }
+        }
+
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 并行加载所有数据
+            await Promise.all([
+                loadAllRods(),
+                loadAllBaits(),
+                loadShopRods(),
+                loadShopBaits()
+            ]);
+
+            // 渲染选择表格
+            renderRodSelectionTable(allRods);
+            renderBaitSelectionTable(allBaits);
+
+            // 绑定搜索事件
+            document.getElementById('rodSearchButton').addEventListener('click', searchRods);
+            document.getElementById('rodSearchInput').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    searchRods();
+                }
+            });
+
+            document.getElementById('baitSearchButton').addEventListener('click', searchBaits);
+            document.getElementById('baitSearchInput').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    searchBaits();
+                }
+            });
+
+            // 绑定添加事件
+            document.getElementById('saveRodToShop').addEventListener('click', addRodsToShop);
+            document.getElementById('saveBaitToShop').addEventListener('click', addBaitsToShop);
+
+            // 绑定保存编辑事件
+            document.getElementById('saveEditRodShopItem').addEventListener('click', saveEditRodShopItem);
+            document.getElementById('saveEditBaitShopItem').addEventListener('click', saveEditBaitShopItem);
+        });
+    </script>
+</body>
+</html>

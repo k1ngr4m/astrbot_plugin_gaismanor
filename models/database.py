@@ -346,6 +346,36 @@ class DatabaseManager:
             )
         ''')
 
+        # 商店鱼竿模板表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shop_rod_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rod_template_id INTEGER NOT NULL,
+                purchase_cost INTEGER,
+                stock INTEGER DEFAULT 0,  -- 0表示无限库存
+                enabled BOOLEAN DEFAULT TRUE,  -- 是否上架
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (rod_template_id) REFERENCES rod_templates (id),
+                UNIQUE(rod_template_id)
+            )
+        ''')
+
+        # 商店鱼饵模板表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shop_bait_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bait_template_id INTEGER NOT NULL,
+                cost INTEGER,
+                stock INTEGER DEFAULT 0,  -- 0表示无限库存
+                enabled BOOLEAN DEFAULT TRUE,  -- 是否上架
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (bait_template_id) REFERENCES bait_templates (id),
+                UNIQUE(bait_template_id)
+            )
+        ''')
+
         conn.commit()
         conn.close()
 

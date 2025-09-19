@@ -160,9 +160,14 @@ class ShopService:
 
     def get_rod_shop_items(self) -> List[RodTemplate]:
         """获取鱼竿商店商品"""
-        results = self.db.fetch_all(
-            "SELECT * FROM rod_templates WHERE source = 'shop' ORDER BY rarity, id"
-        )
+        results = self.db.fetch_all("""
+            SELECT rt.*,
+                   COALESCE(srt.purchase_cost, rt.purchase_cost) as purchase_cost
+            FROM rod_templates rt
+            LEFT JOIN shop_rod_templates srt ON rt.id = srt.rod_template_id
+            WHERE rt.source = 'shop' AND (srt.enabled = 1 OR srt.enabled IS NULL)
+            ORDER BY rt.rarity, rt.id
+        """)
         return [
             RodTemplate(
                 id=row['id'],
@@ -181,9 +186,14 @@ class ShopService:
 
     def get_bait_shop_items(self) -> List[BaitTemplate]:
         """获取鱼饵商店商品"""
-        results = self.db.fetch_all(
-            "SELECT * FROM bait_templates ORDER BY rarity, id"
-        )
+        results = self.db.fetch_all("""
+            SELECT bt.*,
+                   COALESCE(sbt.cost, bt.cost) as cost
+            FROM bait_templates bt
+            LEFT JOIN shop_bait_templates sbt ON bt.id = sbt.bait_template_id
+            WHERE sbt.enabled = 1 OR sbt.enabled IS NULL
+            ORDER BY bt.rarity, bt.id
+        """)
         return [
             BaitTemplate(
                 id=row['id'],
@@ -229,24 +239,38 @@ class ShopService:
 
     def buy_bait(self, user_id: str, bait_id: int, quantity: int = 1) -> bool:
         """购买鱼饵"""
-        # 获取鱼饵模板信息
-        bait_template = self.db.fetch_one(
-            "SELECT * FROM bait_templates WHERE id = ?",
-            (bait_id,)
-        )
-        if not bait_template:
+        # 获取商店中的鱼饵信息
+        bait_info = self.db.fetch_one("""
+            SELECT bt.*, COALESCE(sbt.cost, bt.cost) as cost, sbt.stock
+            FROM bait_templates bt
+            LEFT JOIN shop_bait_templates sbt ON bt.id = sbt.bait_template_id
+            WHERE bt.id = ? AND (sbt.enabled = 1 OR sbt.enabled IS NULL)
+        """, (bait_id,))
+
+        if not bait_info:
+            return False
+
+        # 检查库存是否足够（0表示无限库存）
+        if bait_info['stock'] is not None and bait_info['stock'] > 0 and bait_info['stock'] < quantity:
             return False
 
         # 检查用户金币是否足够
         user = self.get_user(user_id)
-        if not user or user.gold < bait_template['cost'] * quantity:
+        if not user or user.gold < bait_info['cost'] * quantity:
             return False
 
         # 扣除金币
         self.db.execute_query(
             "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (bait_template['cost'] * quantity, user_id)
+            (bait_info['cost'] * quantity, user_id)
         )
+
+        # 减少库存（如果库存不为0）
+        if bait_info['stock'] is not None and bait_info['stock'] > 0:
+            self.db.execute_query(
+                "UPDATE shop_bait_templates SET stock = stock - ? WHERE bait_template_id = ?",
+                (quantity, bait_id)
+            )
 
         # 检查是否已有该鱼饵库存
         existing_bait = self.db.fetch_one(
@@ -273,31 +297,45 @@ class ShopService:
 
     def buy_rod(self, user_id: str, rod_id: int) -> bool:
         """购买鱼竿"""
-        # 获取鱼竿模板信息
-        rod_template = self.db.fetch_one(
-            "SELECT * FROM rod_templates WHERE id = ?",
-            (rod_id,)
-        )
-        if not rod_template:
+        # 获取商店中的鱼竿信息
+        rod_info = self.db.fetch_one("""
+            SELECT rt.*, COALESCE(srt.purchase_cost, rt.purchase_cost) as purchase_cost, srt.stock
+            FROM rod_templates rt
+            LEFT JOIN shop_rod_templates srt ON rt.id = srt.rod_template_id
+            WHERE rt.id = ? AND rt.source = 'shop' AND (srt.enabled = 1 OR srt.enabled IS NULL)
+        """, (rod_id,))
+
+        if not rod_info:
+            return False
+
+        # 检查库存是否足够（0表示无限库存）
+        if rod_info['stock'] is not None and rod_info['stock'] > 0 and rod_info['stock'] < 1:
             return False
 
         # 检查用户金币是否足够
         user = self.get_user(user_id)
-        if not user or user.gold < (rod_template['purchase_cost'] or 0):
+        if not user or user.gold < (rod_info['purchase_cost'] or 0):
             return False
 
         # 扣除金币
         self.db.execute_query(
             "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (rod_template['purchase_cost'], user_id)
+            (rod_info['purchase_cost'], user_id)
         )
+
+        # 减少库存（如果库存不为0）
+        if rod_info['stock'] is not None and rod_info['stock'] > 0:
+            self.db.execute_query(
+                "UPDATE shop_rod_templates SET stock = stock - 1 WHERE rod_template_id = ?",
+                (rod_id,)
+            )
 
         # 添加到用户鱼竿库存
         self.db.execute_query(
             """INSERT INTO user_rod_instances
                (user_id, rod_template_id, level, exp, is_equipped, acquired_at, durability)
                VALUES (?, ?, 1, 0, FALSE, ?, ?)""",
-            (user_id, rod_id, int(time.time()), rod_template['durability'] or 0)
+            (user_id, rod_id, int(time.time()), rod_info['durability'] or 0)
         )
 
         return True

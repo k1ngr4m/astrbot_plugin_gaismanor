@@ -403,6 +403,313 @@ def get_bait_data():
         })
     return jsonify(bait_list)
 
+# 商店管理路由
+@app.route('/shop')
+@login_required
+def shop_management():
+    """商店管理页面"""
+    return render_template('shop_management.html')
+
+@app.route('/api/shop/rods', methods=['GET'])
+@login_required
+def get_shop_rods():
+    """获取商店鱼竿商品"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 获取商店中所有上架的鱼竿
+        shop_rods = db_manager.fetch_all("""
+            SELECT rt.*,
+                   COALESCE(srt.purchase_cost, rt.purchase_cost) as purchase_cost,
+                   srt.stock,
+                   srt.enabled
+            FROM rod_templates rt
+            LEFT JOIN shop_rod_templates srt ON rt.id = srt.rod_template_id
+            WHERE rt.source = 'shop'
+            ORDER BY rt.rarity, rt.id
+        """)
+
+        rod_list = []
+        for rod in shop_rods:
+            rod_list.append({
+                'id': rod['id'],
+                'name': rod['name'],
+                'description': rod['description'],
+                'rarity': rod['rarity'],
+                'source': rod['source'],
+                'purchase_cost': rod['purchase_cost'],
+                'quality_mod': rod['quality_mod'],
+                'quantity_mod': rod['quantity_mod'],
+                'rare_mod': rod['rare_mod'],
+                'durability': rod['durability'],
+                'icon_url': rod['icon_url'],
+                'stock': rod['stock'],
+                'enabled': bool(rod['enabled']) if rod['enabled'] is not None else True
+            })
+
+        return jsonify(rod_list)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/rods', methods=['POST'])
+@login_required
+def add_rod_to_shop():
+    """添加鱼竿到商店"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        rod_id = data.get('rod_id')
+        purchase_cost = data.get('purchase_cost', 0)
+        stock = data.get('stock', 0)
+        enabled = data.get('enabled', True)
+
+        if not rod_id:
+            return jsonify({'error': 'Missing rod_id'}), 400
+
+        # 检查鱼竿是否存在
+        rod = db_manager.fetch_one("SELECT id FROM rod_templates WHERE id = ?", (rod_id,))
+        if not rod:
+            return jsonify({'error': 'Rod not found'}), 404
+
+        # 检查是否已存在于商店中
+        existing = db_manager.fetch_one("SELECT rod_template_id FROM shop_rod_templates WHERE rod_template_id = ?", (rod_id,))
+        if existing:
+            return jsonify({'error': 'Rod already in shop'}), 400
+
+        # 添加到商店
+        db_manager.execute_query(
+            """INSERT INTO shop_rod_templates
+               (rod_template_id, purchase_cost, stock, enabled, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (rod_id, purchase_cost, stock, enabled, int(time.time()), int(time.time()))
+        )
+
+        return jsonify({'message': 'Rod added to shop successfully'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/rods/<int:rod_id>', methods=['PUT'])
+@login_required
+def update_shop_rod(rod_id):
+    """更新商店鱼竿商品"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        purchase_cost = data.get('purchase_cost')
+        stock = data.get('stock')
+        enabled = data.get('enabled')
+
+        # 检查鱼竿是否在商店中
+        existing = db_manager.fetch_one("SELECT rod_template_id FROM shop_rod_templates WHERE rod_template_id = ?", (rod_id,))
+        if not existing:
+            return jsonify({'error': 'Rod not in shop'}), 404
+
+        # 更新商店商品信息
+        update_fields = []
+        update_values = []
+
+        if purchase_cost is not None:
+            update_fields.append("purchase_cost = ?")
+            update_values.append(purchase_cost)
+
+        if stock is not None:
+            update_fields.append("stock = ?")
+            update_values.append(stock)
+
+        if enabled is not None:
+            update_fields.append("enabled = ?")
+            update_values.append(enabled)
+
+        if update_fields:
+            update_fields.append("updated_at = ?")
+            update_values.append(int(time.time()))
+            update_values.append(rod_id)
+
+            db_manager.execute_query(
+                f"UPDATE shop_rod_templates SET {', '.join(update_fields)} WHERE rod_template_id = ?",
+                update_values
+            )
+
+        return jsonify({'message': 'Shop rod updated successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/rods/<int:rod_id>', methods=['DELETE'])
+@login_required
+def remove_rod_from_shop(rod_id):
+    """从商店移除鱼竿"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 检查鱼竿是否在商店中
+        existing = db_manager.fetch_one("SELECT rod_template_id FROM shop_rod_templates WHERE rod_template_id = ?", (rod_id,))
+        if not existing:
+            return jsonify({'error': 'Rod not in shop'}), 404
+
+        # 从商店移除
+        db_manager.execute_query("DELETE FROM shop_rod_templates WHERE rod_template_id = ?", (rod_id,))
+
+        return jsonify({'message': 'Rod removed from shop successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/baits', methods=['GET'])
+@login_required
+def get_shop_baits():
+    """获取商店鱼饵商品"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 获取商店中所有上架的鱼饵
+        shop_baits = db_manager.fetch_all("""
+            SELECT bt.*,
+                   COALESCE(sbt.cost, bt.cost) as cost,
+                   sbt.stock,
+                   sbt.enabled
+            FROM bait_templates bt
+            LEFT JOIN shop_bait_templates sbt ON bt.id = sbt.bait_template_id
+            ORDER BY bt.rarity, bt.id
+        """)
+
+        bait_list = []
+        for bait in shop_baits:
+            bait_list.append({
+                'id': bait['id'],
+                'name': bait['name'],
+                'description': bait['description'],
+                'rarity': bait['rarity'],
+                'effect_description': bait['effect_description'],
+                'duration_minutes': bait['duration_minutes'],
+                'cost': bait['cost'],
+                'required_rod_rarity': bait['required_rod_rarity'],
+                'success_rate_modifier': bait['success_rate_modifier'],
+                'rare_chance_modifier': bait['rare_chance_modifier'],
+                'garbage_reduction_modifier': bait['garbage_reduction_modifier'],
+                'value_modifier': bait['value_modifier'],
+                'quantity_modifier': bait['quantity_modifier'],
+                'is_consumable': bait['is_consumable'],
+                'stock': bait['stock'],
+                'enabled': bool(bait['enabled']) if bait['enabled'] is not None else True
+            })
+
+        return jsonify(bait_list)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/baits', methods=['POST'])
+@login_required
+def add_bait_to_shop():
+    """添加鱼饵到商店"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        bait_id = data.get('bait_id')
+        cost = data.get('cost', 0)
+        stock = data.get('stock', 0)
+        enabled = data.get('enabled', True)
+
+        if not bait_id:
+            return jsonify({'error': 'Missing bait_id'}), 400
+
+        # 检查鱼饵是否存在
+        bait = db_manager.fetch_one("SELECT id FROM bait_templates WHERE id = ?", (bait_id,))
+        if not bait:
+            return jsonify({'error': 'Bait not found'}), 404
+
+        # 检查是否已存在于商店中
+        existing = db_manager.fetch_one("SELECT bait_template_id FROM shop_bait_templates WHERE bait_template_id = ?", (bait_id,))
+        if existing:
+            return jsonify({'error': 'Bait already in shop'}), 400
+
+        # 添加到商店
+        db_manager.execute_query(
+            """INSERT INTO shop_bait_templates
+               (bait_template_id, cost, stock, enabled, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (bait_id, cost, stock, enabled, int(time.time()), int(time.time()))
+        )
+
+        return jsonify({'message': 'Bait added to shop successfully'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/baits/<int:bait_id>', methods=['PUT'])
+@login_required
+def update_shop_bait(bait_id):
+    """更新商店鱼饵商品"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        cost = data.get('cost')
+        stock = data.get('stock')
+        enabled = data.get('enabled')
+
+        # 检查鱼饵是否在商店中
+        existing = db_manager.fetch_one("SELECT bait_template_id FROM shop_bait_templates WHERE bait_template_id = ?", (bait_id,))
+        if not existing:
+            return jsonify({'error': 'Bait not in shop'}), 404
+
+        # 更新商店商品信息
+        update_fields = []
+        update_values = []
+
+        if cost is not None:
+            update_fields.append("cost = ?")
+            update_values.append(cost)
+
+        if stock is not None:
+            update_fields.append("stock = ?")
+            update_values.append(stock)
+
+        if enabled is not None:
+            update_fields.append("enabled = ?")
+            update_values.append(enabled)
+
+        if update_fields:
+            update_fields.append("updated_at = ?")
+            update_values.append(int(time.time()))
+            update_values.append(bait_id)
+
+            db_manager.execute_query(
+                f"UPDATE shop_bait_templates SET {', '.join(update_fields)} WHERE bait_template_id = ?",
+                update_values
+            )
+
+        return jsonify({'message': 'Shop bait updated successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shop/baits/<int:bait_id>', methods=['DELETE'])
+@login_required
+def remove_bait_from_shop(bait_id):
+    """从商店移除鱼饵"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 检查鱼饵是否在商店中
+        existing = db_manager.fetch_one("SELECT bait_template_id FROM shop_bait_templates WHERE bait_template_id = ?", (bait_id,))
+        if not existing:
+            return jsonify({'error': 'Bait not in shop'}), 404
+
+        # 从商店移除
+        db_manager.execute_query("DELETE FROM shop_bait_templates WHERE bait_template_id = ?", (bait_id,))
+
+        return jsonify({'message': 'Bait removed from shop successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # 卡池数据路由
 @app.route('/gacha_pools')
 @login_required
