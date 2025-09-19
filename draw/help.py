@@ -167,7 +167,6 @@ def draw_help_image():
         ("钓鱼", "进行一次钓鱼"),
         ("签到", "每日签到"),
         ("自动钓鱼", "开启/关闭\n自动钓鱼"),
-        ("钓鱼区域", "查看钓鱼\n的区域"),
         ("钓鱼记录", "查看钓鱼记录"),
         ("等级", "查看用户\n等级和经验"),
         ("金币", "查看用户\n金币信息")
@@ -181,15 +180,14 @@ def draw_help_image():
 
         ("使用鱼竿 [ID]", "使用鱼竿"),
         ("卸下鱼竿", "卸下鱼竿"),
-        ("精炼鱼竿 [ID]", "精炼鱼竿"),
         ("使用鱼饵 [ID]", "使用鱼饵"),
 
     ]
 
     market = [
         ("商店", "查看商店信息"),
-        ("商店 鱼竿", "查看鱼竿商店"),
-        ("商店 鱼饵", "查看鱼饵商店"),
+        ("商店鱼竿", "查看鱼竿商店"),
+        ("商店鱼饵", "查看鱼饵商店"),
 
         ("购买鱼竿 [ID]", "购买鱼竿"),
         ("购买鱼饵 [ID]", "购买鱼饵"),
@@ -245,6 +243,8 @@ def draw_help_image():
     final_height = footer_y + 30
     image = image.crop((0, 0, width, min(final_height, height)))
 
-    output_path = "fishing_commands_beautiful.png"
+    output_path = "data/plugins/astrbot_plugin_gaismanor/cache/fishing_commands_beautiful.png"
+    # 确保缓存目录存在
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     image.save(output_path, quality=95)
     return output_path

@@ -126,7 +126,9 @@ class OtherService:
             })
 
         # 生成排行榜图片
-        output_path = "fishing_ranking.png"
+        output_path = "data/plugins/astrbot_plugin_gaismanor/cache/fishing_ranking.png"
+        # 确保缓存目录存在
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         try:
             draw_fishing_ranking(user_data, output_path)
             if os.path.exists(output_path):
@@ -408,7 +410,12 @@ class OtherService:
         }
 
         # 生成状态图片
-        output_path = f"user_state_{user_id}.png"
+        # 清理用户ID中的特殊字符，只保留字母、数字和下划线
+        import re
+        safe_user_id = re.sub(r'[^a-zA-Z0-9_]', '_', user_id)
+        output_path = f"data/plugins/astrbot_plugin_gaismanor/cache/user_state_{safe_user_id}.png"
+        # 确保缓存目录存在
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         try:
             image = draw_state_image(user_data)
             image.save(output_path)

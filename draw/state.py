@@ -20,7 +20,6 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             - current_bait: 当前装备的鱼饵信息
             - auto_fishing_enabled: 是否开启自动钓鱼
             - steal_cooldown_remaining: 偷鱼剩余CD时间（秒）
-            - fishing_zone: 当前钓鱼区域
             - current_title: 当前称号信息
             - total_fishing_count: 总钓鱼次数
             - steal_total_value: 偷鱼总价值
@@ -548,7 +547,7 @@ def get_user_avatar(user_id: str, avatar_size: int = 50) -> Optional[Image.Image
     """
     try:
         # 创建头像缓存目录
-        cache_dir = os.path.join("data/plugin_data/astrbot_plugin_fishing", "avatar_cache")
+        cache_dir = os.path.join("data/plugin_data/astrbot_plugin_gaismanor", "avatar_cache")
         os.makedirs(cache_dir, exist_ok=True)
 
         avatar_cache_path = os.path.join(cache_dir, f"{user_id}_avatar.png")
