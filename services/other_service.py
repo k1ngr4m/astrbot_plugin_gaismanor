@@ -479,17 +479,76 @@ class OtherService:
             (gold_to_bet, user_id)
         )
 
-        # 生成随机倍数 - 加权随机，数值合理
+        # 生成随机倍数 - 调整后的加权随机，数值合理
         # 倍数及其概率：
-        # 0.1x (10%) - 10% 概率
+        # 0.1x (15%) - 15% 概率
         # 0.5x (15%) - 15% 概率
         # 1x (20%) - 20% 概率
         # 2x (25%) - 25% 概率
-        # 3x (15%) - 15% 概率
-        # 5x (10%) - 10% 概率
-        # 10x (5%) - 5% 概率
+        # 3x (12%) - 12% 概率
+        # 5x (9%) - 9% 概率
+        # 10x (4%) - 4% 概率
         multipliers = [0.1, 0.5, 1, 2, 3, 5, 10]
-        weights = [10, 15, 20, 25, 15, 10, 5]
+        base_weights = [15, 15, 20, 25, 12, 9, 4]
+
+        # 获取用户擦弹历史记录，用于实现保底机制和递增概率
+        wipe_history = self.db.fetch_all("""
+            SELECT multiplier, timestamp
+            FROM wipe_bomb_logs
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """, (user_id,))
+
+        # 计算连续失败次数（获得0.1x或0.5x的次数）
+        consecutive_failures = 0
+        for record in wipe_history:
+            if record['multiplier'] <= 0.5:
+                consecutive_failures += 1
+            else:
+                break
+
+        # 保底机制：连续多次擦弹失败后，下一次必然不会得到0.1x
+        weights = base_weights[:]
+        if consecutive_failures >= 2:
+            weights[0] = 0  # 0.1x概率设为0
+            # 将概率转移到0.5x上
+            weights[1] += base_weights[0]
+
+        # 递增概率机制：每次失败后，高奖励概率略微提升
+        bonus_factor = min(consecutive_failures * 0.1, 0.5)  # 最多增加50%的概率
+        if bonus_factor > 0:
+            # 将增加的概率从低倍数转移到高倍数
+            weights[0] -= int(base_weights[0] * bonus_factor)
+            weights[5] += int(base_weights[5] * bonus_factor / 2)  # 5x
+            weights[6] += int(base_weights[6] * bonus_factor / 2)  # 10x
+
+        # 动态调整概率机制：根据玩家金币数量调整
+        # 当玩家金币较多时，降低高收益概率；当玩家金币较少时，略微提高高收益概率
+        gold_ratio = user['gold'] / 10000  # 假设10000金币为基准
+        if gold_ratio > 2:  # 金币是基准的2倍以上
+            # 降低高收益概率
+            weights[5] -= 2  # 5x
+            weights[6] -= 1  # 10x
+            # 增加低收益概率
+            weights[0] += 1  # 0.1x
+            weights[1] += 1  # 0.5x
+            weights[2] += 1  # 1x
+        elif gold_ratio < 0.5:  # 金币不到基准的一半
+            # 提高高收益概率
+            weights[5] += 1  # 5x
+            weights[6] += 1  # 10x
+            # 降低低收益概率
+            weights[0] -= 1  # 0.1x
+            weights[1] -= 1  # 0.5x
+
+        # 确保权重不为负数
+        weights = [max(0, w) for w in weights]
+
+        # 如果所有权重都为0，则使用基础权重
+        if sum(weights) == 0:
+            weights = base_weights
+
         multiplier = random.choices(multipliers, weights=weights)[0]
 
         # 计算获得的金币
