@@ -161,3 +161,51 @@ class SellService:
         )
 
         yield event.plain_result(f"成功出售鱼饵 [{bait['bait_name']}] x{bait['quantity']}！\n获得金币: {sell_price}枚")
+
+    async def sell_all_rods_command(self, event: AstrMessageEvent):
+        """出售所有鱼竿命令"""
+        user_id = event.get_sender_id()
+
+        # 获取用户所有非五星鱼竿（保留五星鱼竿）
+        rods = self.db.fetch_all(
+            """SELECT uri.*, rt.name as rod_name, rt.rarity as rod_rarity
+               FROM user_rod_instances uri
+               JOIN rod_templates rt ON uri.rod_template_id = rt.id
+               WHERE uri.user_id = ? AND uri.is_equipped = FALSE AND rt.rarity < 5""",
+            (user_id,)
+        )
+
+        if not rods:
+            yield event.plain_result("您没有可以出售的鱼竿（非五星且未装备的鱼竿）！")
+            return
+
+        # 计算总价值
+        total_value = 0
+        rod_names = []
+        rod_ids = []
+
+        for rod in rods:
+            # 计算出售价格 (根据稀有度确定基础价格)
+            base_price = 100 * rod['rod_rarity']  # 1星100金币，2星200金币，以此类推
+            sell_price = max(10, base_price // 2)  # 最低10金币
+
+            total_value += sell_price
+            rod_names.append(rod['rod_name'])
+            rod_ids.append(rod['id'])
+
+        # 删除所有非五星且未装备的鱼竿
+        placeholders = ','.join('?' * len(rod_ids))
+        self.db.execute_query(
+            f"DELETE FROM user_rod_instances WHERE id IN ({placeholders})",
+            rod_ids
+        )
+
+        # 增加用户金币
+        self.db.execute_query(
+            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
+            (total_value, user_id)
+        )
+
+        # 构造返回消息
+        rod_list = "\n".join([f"  · {name}" for name in rod_names])
+        yield event.plain_result(f"成功出售以下鱼竿：\n{rod_list}\n\n获得金币: {total_value}枚")

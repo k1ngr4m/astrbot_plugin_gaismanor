@@ -1,6 +1,7 @@
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
+from .draw.help import draw_help_image
 from .models.database import DatabaseManager
 from .services.user_service import UserService
 from .services.inventory_service import InventoryService
@@ -167,7 +168,7 @@ class GaismanorPlugin(Star):
             yield result
 
     # 💰 出售鱼类
-    @filter.command("全部卖出")
+    @filter.command("出售所有鱼")
     async def sell_all_command(self, event: AstrMessageEvent):
         async for result in self.sell_service.sell_all_command(event):
             yield result
@@ -181,6 +182,11 @@ class GaismanorPlugin(Star):
     @filter.command("出售鱼竿")
     async def sell_rod_command(self, event: AstrMessageEvent, rod_id: int):
         async for result in self.sell_service.sell_rod_command(event, rod_id):
+            yield result
+
+    @filter.command("出售所有鱼竿")
+    async def sell_all_rods_command(self, event: AstrMessageEvent):
+        async for result in self.sell_service.sell_all_rods_command(event):
             yield result
 
     @filter.command("出售鱼饵")
@@ -202,6 +208,11 @@ class GaismanorPlugin(Star):
     @filter.command("查看卡池")
     async def view_gacha_pool_command(self, event: AstrMessageEvent, pool_id: int):
         async for result in self.gacha_service.view_gacha_pool_command(event, pool_id):
+            yield result
+
+    @filter.command("抽卡记录")
+    async def gacha_log_command(self, event: AstrMessageEvent):
+        async for result in self.gacha_service.gacha_log_command(event):
             yield result
 
     # ⚙️ 其他功能
@@ -228,51 +239,5 @@ class GaismanorPlugin(Star):
     # 帮助命令
     @filter.command("钓鱼帮助")
     async def help_command(self, event: AstrMessageEvent):
-        """显示所有可用命令"""
-        commands = [
-            "🌟 基础命令:",
-            "  /注册 - 注册账号",
-            "  /钓鱼 - 开始钓鱼",
-            "  /签到 - 每日签到",
-            "  /金币 - 查看金币余额",
-            "  /等级 - 查看等级和经验",
-            "  /自动钓鱼 - 开启/关闭自动钓鱼",
-            "  /钓鱼记录 - 查看钓鱼历史记录",
-            "",
-            "🎒 背包相关:",
-            "  /鱼塘 - 查看鱼塘",
-            "  /升级鱼塘 - 升级鱼塘容量",
-            "  /鱼饵 - 查看鱼饵背包",
-            "  /鱼竿 - 查看鱼竿背包",
-            "",
-            "🛒 商店与购买:",
-            "  /商店 - 查看商店",
-            "  /商店 鱼竿 - 查看鱼竿商店",
-            "  /商店 鱼饵 - 查看鱼饵商店",
-            "  /购买鱼饵 <鱼饵ID> [数量] - 购买鱼饵",
-            "  /购买鱼竿 <鱼竿ID> - 购买鱼竿",
-            "  /使用鱼饵 <鱼饵ID> - 使用鱼饵",
-            "  /使用鱼竿 <鱼竿ID> - 装备鱼竿",
-            "  /卸下鱼竿 - 卸下鱼竿",
-            "",
-            "💰 出售鱼类:",
-            "  /全部卖出 - 出售所有鱼类",
-            "  /出售稀有度 <稀有度> - 按稀有度出售鱼类",
-            "  /出售鱼竿 <鱼竿ID> - 出售鱼竿",
-            "  /出售鱼饵 <鱼饵ID> - 出售鱼饵",
-            "",
-            "✨ 抽卡系统:",
-            "  /抽卡 <卡池ID> - 单次抽卡",
-            "  /十连 <卡池ID> - 十连抽卡",
-            "  /查看卡池 <卡池ID> - 查看卡池详情",
-            "",
-            "⚙️ 其他功能:",
-            "  /排行榜 - 查看金币排行榜",
-            "  /鱼类图鉴 - 查看已捕获鱼类图鉴",
-            "  /查看成就 - 查看已解锁和未解锁的成就",
-            "  /查看称号 - 查看已获得的称号",
-            "  /钓鱼帮助 - 显示此帮助信息"
-        ]
-
-        help_text = "🎮 Gaismanor 庄园插件命令列表:\n\n" + "\n".join(commands)
-        yield event.plain_result(help_text)
+        image = draw_help_image()
+        yield event.image_result(image)

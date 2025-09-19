@@ -365,3 +365,100 @@ class GachaService:
                 pool_info += f"  · {bait['name']} ({stars})\n\n"
 
         yield event.plain_result(pool_info)
+
+    async def gacha_log_command(self, event: AstrMessageEvent):
+        """查看抽卡记录命令"""
+        user_id = event.get_sender_id()
+
+        # 获取用户的抽卡记录
+        logs = self.db.fetch_all(
+            """SELECT gl.*, rt.name as item_name, rt.rarity as item_rarity
+               FROM gacha_logs gl
+               LEFT JOIN rod_templates rt ON gl.item_template_id = rt.id AND gl.item_type = 'rod'
+               WHERE gl.user_id = ?
+               ORDER BY gl.timestamp DESC
+               LIMIT 20""",
+            (user_id,)
+        )
+
+        # 如果没有抽卡记录
+        if not logs:
+            yield event.plain_result("您还没有抽卡记录。")
+            return
+
+        # 获取其他类型的物品名称
+        accessory_logs = self.db.fetch_all(
+            """SELECT gl.*, at.name as item_name, at.rarity as item_rarity
+               FROM gacha_logs gl
+               LEFT JOIN accessory_templates at ON gl.item_template_id = at.id AND gl.item_type = 'accessory'
+               WHERE gl.user_id = ? AND gl.item_type = 'accessory'
+               ORDER BY gl.timestamp DESC
+               LIMIT 20""",
+            (user_id,)
+        )
+
+        bait_logs = self.db.fetch_all(
+            """SELECT gl.*, bt.name as item_name, bt.rarity as item_rarity
+               FROM gacha_logs gl
+               LEFT JOIN bait_templates bt ON gl.item_template_id = bt.id AND gl.item_type = 'bait'
+               WHERE gl.user_id = ? AND gl.item_type = 'bait'
+               ORDER BY gl.timestamp DESC
+               LIMIT 20""",
+            (user_id,)
+        )
+
+        # 合并所有记录并按时间排序
+        all_logs = list(logs) + list(accessory_logs) + list(bait_logs)
+        all_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+        all_logs = all_logs[:20]  # 只取最新的20条记录
+
+        if not all_logs:
+            yield event.plain_result("您还没有抽卡记录。")
+            return
+
+        # 构造返回消息
+        result_msg = "=== 抽卡记录 (最近20条) ===\n\n"
+
+        for log in all_logs:
+            # 获取物品名称和稀有度
+            item_name = log['item_name']
+            item_rarity = log['item_rarity']
+
+            if not item_name or item_rarity is None:
+                # 如果物品信息缺失，尝试从对应的表中获取
+                if log['item_type'] == 'rod':
+                    item = self.db.fetch_one("SELECT name, rarity FROM rod_templates WHERE id = ?", (log['item_template_id'],))
+                elif log['item_type'] == 'accessory':
+                    item = self.db.fetch_one("SELECT name, rarity FROM accessory_templates WHERE id = ?", (log['item_template_id'],))
+                elif log['item_type'] == 'bait':
+                    item = self.db.fetch_one("SELECT name, rarity FROM bait_templates WHERE id = ?", (log['item_template_id'],))
+                else:
+                    item = None
+
+                if item:
+                    item_name = item['name']
+                    item_rarity = item['rarity']
+                else:
+                    item_name = "未知物品"
+                    item_rarity = 1
+
+            # 格式化时间
+            import datetime
+            timestamp = datetime.datetime.fromtimestamp(log['timestamp'])
+            time_str = timestamp.strftime("%m-%d %H:%M")
+
+            # 物品类型中文
+            type_map = {
+                'rod': '鱼竿',
+                'accessory': '饰品',
+                'bait': '鱼饵'
+            }
+            item_type = type_map.get(log['item_type'], log['item_type'])
+
+            # 稀有度星星
+            rarity_stars = "★" * item_rarity
+
+            result_msg += f"{time_str} 抽到 {item_type} {rarity_stars}\n"
+            result_msg += f"  · {item_name}\n\n"
+
+        yield event.plain_result(result_msg)
