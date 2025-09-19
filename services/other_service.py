@@ -89,62 +89,52 @@ class OtherService:
 
     async def leaderboard_command(self, event: AstrMessageEvent):
         """排行榜命令"""
-        # 获取金币排行榜 (前10名)
-        gold_leaderboard = self.db.fetch_all("""
-            SELECT nickname, gold
-            FROM users
-            ORDER BY gold DESC
+        from ..draw.rank import draw_fishing_ranking
+        import os
+
+        # 获取综合排行榜 (前10名) - 综合考虑金币、钓鱼次数和总收益
+        comprehensive_leaderboard = self.db.fetch_all("""
+            SELECT u.nickname, u.gold, u.fishing_count, u.total_income,
+                   uri.rod_template_id, rt.name as rod_name,
+                   uai.accessory_template_id, at.name as accessory_name,
+                   t.name as title_name
+            FROM users u
+            LEFT JOIN user_rod_instances uri ON u.user_id = uri.user_id AND uri.is_equipped = TRUE
+            LEFT JOIN rod_templates rt ON uri.rod_template_id = rt.id
+            LEFT JOIN user_accessory_instances uai ON u.user_id = uai.user_id AND uai.is_equipped = TRUE
+            LEFT JOIN accessory_templates at ON uai.accessory_template_id = at.id
+            LEFT JOIN user_titles ut ON u.user_id = ut.user_id AND ut.is_active = TRUE
+            LEFT JOIN titles t ON ut.title_id = t.id
+            ORDER BY (u.gold + u.fishing_count * 10 + u.total_income) DESC
             LIMIT 10
         """)
 
-        # 获取钓鱼次数排行榜 (前10名)
-        fishing_count_leaderboard = self.db.fetch_all("""
-            SELECT nickname, fishing_count
-            FROM users
-            ORDER BY fishing_count DESC
-            LIMIT 10
-        """)
+        if not comprehensive_leaderboard:
+            yield event.plain_result("暂无排行榜数据！")
+            return
 
-        # 获取总收益排行榜 (前10名)
-        income_leaderboard = self.db.fetch_all("""
-            SELECT nickname, total_income
-            FROM users
-            ORDER BY total_income DESC
-            LIMIT 10
-        """)
+        # 转换为绘图函数需要的格式
+        user_data = []
+        for user in comprehensive_leaderboard:
+            user_data.append({
+                "nickname": user['nickname'] or "未知用户",
+                "title": user['title_name'] or "无称号",
+                "coins": user['gold'] or 0,
+                "fish_count": user['fishing_count'] or 0,
+                "fishing_rod": user['rod_name'] or "无鱼竿",
+                "accessory": user['accessory_name'] or "无饰品"
+            })
 
-        # 构造排行榜信息
-        leaderboard_info = "=== 庄园钓鱼排行榜 ===\n\n"
-
-        # 金币排行榜
-        leaderboard_info += "💰 金币排行榜:\n"
-        if gold_leaderboard:
-            for i, user in enumerate(gold_leaderboard, 1):
-                leaderboard_info += f"{i}. {user['nickname']}: {user['gold']}金币\n"
-        else:
-            leaderboard_info += "暂无数据\n"
-
-        leaderboard_info += "\n"
-
-        # 钓鱼次数排行榜
-        leaderboard_info += "🎣 钓鱼次数排行榜:\n"
-        if fishing_count_leaderboard:
-            for i, user in enumerate(fishing_count_leaderboard, 1):
-                leaderboard_info += f"{i}. {user['nickname']}: {user['fishing_count']}次\n"
-        else:
-            leaderboard_info += "暂无数据\n"
-
-        leaderboard_info += "\n"
-
-        # 总收益排行榜
-        leaderboard_info += "📈 总收益排行榜:\n"
-        if income_leaderboard:
-            for i, user in enumerate(income_leaderboard, 1):
-                leaderboard_info += f"{i}. {user['nickname']}: {user['total_income']}金币\n"
-        else:
-            leaderboard_info += "暂无数据\n"
-
-        yield event.plain_result(leaderboard_info)
+        # 生成排行榜图片
+        output_path = "fishing_ranking.png"
+        try:
+            draw_fishing_ranking(user_data, output_path)
+            if os.path.exists(output_path):
+                yield event.image_result(output_path)
+            else:
+                yield event.plain_result("生成排行榜图片失败！")
+        except Exception as e:
+            yield event.plain_result(f"生成排行榜图片时出错: {str(e)}")
 
     async def fish_gallery_command(self, event: AstrMessageEvent):
         """鱼类图鉴命令"""
