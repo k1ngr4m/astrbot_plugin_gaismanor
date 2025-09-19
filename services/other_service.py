@@ -319,3 +319,209 @@ class OtherService:
                 title_info += f"    获得时间: {acquired_time}\n\n"
 
         yield event.plain_result(title_info)
+
+    async def state_command(self, event: AstrMessageEvent):
+        """状态命令 - 以图片形式展示用户状态"""
+        from ..draw.state import draw_state_image
+        import os
+
+        user_id = event.get_sender_id()
+
+        # 检查用户是否已注册
+        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 获取用户装备的鱼竿
+        equipped_rod = self.db.fetch_one("""
+            SELECT rt.name, rt.rarity, uri.level as refine_level
+            FROM user_rod_instances uri
+            JOIN rod_templates rt ON uri.rod_template_id = rt.id
+            WHERE uri.user_id = ? AND uri.is_equipped = TRUE
+        """, (user_id,))
+
+        # 获取用户装备的饰品
+        equipped_accessory = self.db.fetch_one("""
+            SELECT at.name, at.rarity, uai.level as refine_level
+            FROM user_accessory_instances uai
+            JOIN accessory_templates at ON uai.accessory_template_id = at.id
+            WHERE uai.user_id = ? AND uai.is_equipped = TRUE
+        """, (user_id,))
+
+        # 获取用户使用的鱼饵
+        current_bait = self.db.fetch_one("""
+            SELECT bt.name, bt.rarity, ubi.quantity
+            FROM user_bait_inventory ubi
+            JOIN bait_templates bt ON ubi.bait_template_id = bt.id
+            WHERE ubi.user_id = ? AND ubi.id = (
+                SELECT current_bait_id FROM users WHERE user_id = ?
+            )
+        """, (user_id, user_id))
+
+        # 获取用户当前称号
+        current_title = self.db.fetch_one("""
+            SELECT t.name
+            FROM user_titles ut
+            JOIN titles t ON ut.title_id = t.id
+            WHERE ut.user_id = ? AND ut.is_active = TRUE
+        """, (user_id,))
+
+        # 获取用户钓鱼区域信息
+        fishing_zone = self.db.fetch_one("""
+            SELECT fz.name, fz.daily_rare_fish_quota, fz.rare_fish_caught_today
+            FROM fishing_zones fz
+            JOIN users u ON fz.id = u.fishing_zone_id
+            WHERE u.user_id = ?
+        """, (user_id,))
+
+        # 获取鱼塘信息
+        pond_info = self.db.fetch_one("""
+            SELECT COUNT(*) as total_count, COALESCE(SUM(value), 0) as total_value
+            FROM user_fish_inventory
+            WHERE user_id = ?
+        """, (user_id,))
+
+        # 获取擦弹剩余次数
+        today = datetime.now().date()
+        today_str = today.strftime('%Y-%m-%d')
+        wipe_bomb_count = self.db.fetch_one("""
+            SELECT COUNT(*) as count
+            FROM wipe_bomb_logs
+            WHERE user_id = ? AND date(timestamp) = ?
+        """, (user_id, today_str))
+
+        wipe_bomb_remaining = 3 - (wipe_bomb_count['count'] if wipe_bomb_count else 0)
+
+        # 构造用户状态数据
+        user_data = {
+            'user_id': user_id,
+            'nickname': user['nickname'] or "未知用户",
+            'coins': user['gold'],
+            'current_rod': dict(equipped_rod) if equipped_rod else None,
+            'current_accessory': dict(equipped_accessory) if equipped_accessory else None,
+            'current_bait': dict(current_bait) if current_bait else None,
+            'auto_fishing_enabled': bool(user['auto_fishing']),
+            'steal_cooldown_remaining': 0,  # 简化处理
+            'fishing_zone': dict(fishing_zone) if fishing_zone else {'name': '新手池', 'daily_rare_fish_quota': 0, 'rare_fish_caught_today': 0},
+            'current_title': dict(current_title) if current_title else None,
+            'total_fishing_count': user['fishing_count'],
+            'steal_total_value': 0,  # 简化处理
+            'signed_in_today': True,  # 简化处理
+            'wipe_bomb_remaining': max(0, wipe_bomb_remaining),
+            'pond_info': dict(pond_info) if pond_info else {'total_count': 0, 'total_value': 0}
+        }
+
+        # 生成状态图片
+        output_path = f"user_state_{user_id}.png"
+        try:
+            image = draw_state_image(user_data)
+            image.save(output_path)
+            if os.path.exists(output_path):
+                yield event.image_result(output_path)
+            else:
+                yield event.plain_result("生成状态图片失败！")
+        except Exception as e:
+            yield event.plain_result(f"生成状态图片时出错: {str(e)}")
+
+    async def wipe_bomb_command(self, event: AstrMessageEvent, amount: str):
+        """擦弹命令 - 投入金币获得随机倍数回报"""
+        import random
+        from datetime import datetime
+
+        user_id = event.get_sender_id()
+
+        # 检查用户是否已注册
+        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 解析投入的金币数
+        gold_to_bet = 0
+        if amount.lower() in ['梭哈', 'allin']:
+            gold_to_bet = user['gold']
+        elif amount.lower() in ['梭一半', 'halfin']:
+            gold_to_bet = user['gold'] // 2
+        else:
+            try:
+                gold_to_bet = int(amount)
+            except ValueError:
+                yield event.plain_result("请输入有效的金币数量或 '梭哈'/'梭一半'/'allin'/'halfin'")
+                return
+
+        # 检查金币是否足够
+        if gold_to_bet <= 0:
+            yield event.plain_result("投入的金币数必须大于0！")
+            return
+
+        if user['gold'] < gold_to_bet:
+            yield event.plain_result("您的金币不足！")
+            return
+
+        # 检查今日擦弹次数限制（每天最多3次）
+        today = datetime.now().date()
+        today_str = today.strftime('%Y-%m-%d')
+        wipe_bomb_count = self.db.fetch_one("""
+            SELECT COUNT(*) as count
+            FROM wipe_bomb_logs
+            WHERE user_id = ? AND date(timestamp) = ?
+        """, (user_id, today_str))
+
+        used_attempts = wipe_bomb_count['count'] if wipe_bomb_count else 0
+        if used_attempts >= 3:
+            yield event.plain_result("您今天的擦弹次数已用完！每天最多可擦弹3次。")
+            return
+
+        # 扣除用户金币
+        self.db.execute_query(
+            "UPDATE users SET gold = gold - ? WHERE user_id = ?",
+            (gold_to_bet, user_id)
+        )
+
+        # 生成随机倍数 - 加权随机，数值合理
+        # 倍数及其概率：
+        # 0.1x (10%) - 10% 概率
+        # 0.5x (15%) - 15% 概率
+        # 1x (20%) - 20% 概率
+        # 2x (25%) - 25% 概率
+        # 3x (15%) - 15% 概率
+        # 5x (10%) - 10% 概率
+        # 10x (5%) - 5% 概率
+        multipliers = [0.1, 0.5, 1, 2, 3, 5, 10]
+        weights = [10, 15, 20, 25, 15, 10, 5]
+        multiplier = random.choices(multipliers, weights=weights)[0]
+
+        # 计算获得的金币
+        earned_gold = int(gold_to_bet * multiplier)
+
+        # 增加用户金币
+        self.db.execute_query(
+            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
+            (earned_gold, user_id)
+        )
+
+        # 记录擦弹日志
+        self.db.execute_query(
+            """INSERT INTO wipe_bomb_logs
+               (user_id, bet_amount, multiplier, earned_amount, timestamp)
+               VALUES (?, ?, ?, ?, ?)""",
+            (user_id, gold_to_bet, multiplier, earned_gold, int(datetime.now().timestamp()))
+        )
+
+        # 构造返回消息
+        if multiplier >= 5:
+            result_msg = f"🎉 恭喜！擦弹成功！\n"
+        elif multiplier >= 2:
+            result_msg = f"😊 不错！擦弹成功！\n"
+        elif multiplier >= 1:
+            result_msg = f"🙂 还行！擦弹成功！\n"
+        else:
+            result_msg = f"😢 很遗憾，擦弹失败了...\n"
+
+        result_msg += f"投入金币: {gold_to_bet}\n"
+        result_msg += f"获得倍数: {multiplier}x\n"
+        result_msg += f"获得金币: {earned_gold}\n"
+        result_msg += f"剩余次数: {2 - used_attempts}次"
+
+        yield event.plain_result(result_msg)

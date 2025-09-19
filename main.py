@@ -236,8 +236,19 @@ class GaismanorPlugin(Star):
         async for result in self.other_service.view_titles_command(event):
             yield result
 
+    @filter.command("状态")
+    async def state_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.state_command(event):
+            yield result
+
     # 帮助命令
     @filter.command("钓鱼帮助")
     async def help_command(self, event: AstrMessageEvent):
         image = draw_help_image()
         yield event.image_result(image)
+
+    # 擦弹命令
+    @filter.command("擦弹")
+    async def wipe_bomb_command(self, event: AstrMessageEvent, amount: str):
+        async for result in self.other_service.wipe_bomb_command(event, amount):
+            yield result
