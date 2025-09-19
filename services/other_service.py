@@ -381,12 +381,13 @@ class OtherService:
 
         # 获取擦弹剩余次数
         today = datetime.now().date()
-        today_str = today.strftime('%Y-%m-%d')
+        today_start = int(datetime.combine(today, datetime.min.time()).timestamp())
+        today_end = int(datetime.combine(today, datetime.max.time()).timestamp())
         wipe_bomb_count = self.db.fetch_one("""
             SELECT COUNT(*) as count
             FROM wipe_bomb_logs
-            WHERE user_id = ? AND date(timestamp) = ?
-        """, (user_id, today_str))
+            WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
+        """, (user_id, today_start, today_end))
 
         wipe_bomb_remaining = 3 - (wipe_bomb_count['count'] if wipe_bomb_count else 0)
 
@@ -463,12 +464,13 @@ class OtherService:
 
         # 检查今日擦弹次数限制（每天最多3次）
         today = datetime.now().date()
-        today_str = today.strftime('%Y-%m-%d')
+        today_start = int(datetime.combine(today, datetime.min.time()).timestamp())
+        today_end = int(datetime.combine(today, datetime.max.time()).timestamp())
         wipe_bomb_count = self.db.fetch_one("""
             SELECT COUNT(*) as count
             FROM wipe_bomb_logs
-            WHERE user_id = ? AND date(timestamp) = ?
-        """, (user_id, today_str))
+            WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
+        """, (user_id, today_start, today_end))
 
         used_attempts = wipe_bomb_count['count'] if wipe_bomb_count else 0
         if used_attempts >= 3:
@@ -586,3 +588,45 @@ class OtherService:
         result_msg += f"剩余次数: {2 - used_attempts}次"
 
         yield event.plain_result(result_msg)
+
+    async def wipe_bomb_log_command(self, event: AstrMessageEvent):
+        """擦弹记录命令"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否已注册
+        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 获取用户的擦弹记录（最近20条）
+        wipe_bomb_logs = self.db.fetch_all("""
+            SELECT *
+            FROM wipe_bomb_logs
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """, (user_id,))
+
+        if not wipe_bomb_logs:
+            yield event.plain_result("暂无擦弹记录！")
+            return
+
+        # 构造擦弹记录信息
+        log_info = "=== 擦弹记录 ===\n\n"
+
+        for log in wipe_bomb_logs:
+            # 格式化时间
+            log_time = datetime.fromtimestamp(log['timestamp']).strftime('%Y-%m-%d %H:%M')
+
+            log_info += f"[{log_time}]\n"
+            log_info += f"  投入金币: {log['bet_amount']}\n"
+            log_info += f"  获得倍数: {log['multiplier']}x\n"
+            log_info += f"  获得金币: {log['earned_amount']}\n"
+
+            # 计算净收益（获得金币 - 投入金币）
+            net_profit = log['earned_amount'] - log['bet_amount']
+            profit_indicator = "+" if net_profit > 0 else ""
+            log_info += f"  净收益: {profit_indicator}{net_profit}\n\n"
+
+        yield event.plain_result(log_info)
