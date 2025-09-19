@@ -39,6 +39,7 @@ class DatabaseManager:
                 auto_fishing BOOLEAN DEFAULT FALSE,
                 total_fishing_count INTEGER DEFAULT 0,
                 total_coins_earned INTEGER DEFAULT 0,
+                current_bait_id INTEGER,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             )
@@ -286,6 +287,19 @@ class DatabaseManager:
                 reward_gold INTEGER NOT NULL,
                 timestamp INTEGER NOT NULL,
                 UNIQUE(user_id, date),
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+
+        # 擦弹记录表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS wipe_bomb_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                bet_amount INTEGER NOT NULL,
+                multiplier REAL NOT NULL,
+                earned_amount INTEGER NOT NULL,
+                timestamp INTEGER NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users (user_id)
             )
         ''')

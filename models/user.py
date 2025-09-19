@@ -8,7 +8,7 @@ class User:
     user_id: str
     platform: str = "unknown"  # 平台 (qq, dingtalk, feishu等)
     nickname: str = ""
-    gold: int = 200  # 金币
+    gold: int = 20000  # 金币
     exp: int = 0     # 经验值
     level: int = 1   # 等级
     fishing_count: int = 0  # 钓鱼次数

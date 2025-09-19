@@ -252,3 +252,9 @@ class GaismanorPlugin(Star):
     async def wipe_bomb_command(self, event: AstrMessageEvent, amount: str):
         async for result in self.other_service.wipe_bomb_command(event, amount):
             yield result
+
+    # 擦弹记录命令
+    @filter.command("擦弹记录")
+    async def wipe_bomb_log_command(self, event: AstrMessageEvent):
+        async for result in self.other_service.wipe_bomb_log_command(event):
+            yield result
