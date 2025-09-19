@@ -261,19 +261,10 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     draw.text((right_col_x, equipment_row4_y), "钓鱼区域", font=small_font, fill=primary_light)
 
     # 钓鱼区域内容
-    fishing_zone = user_data.get('fishing_zone', {})
-    zone_name = fishing_zone.get('name', '未知区域')
-    zone_display = zone_name[:12] + "..." if len(zone_name) > 12 else zone_name
+    zone_display = "普通池"
     draw.text((right_col_x, equipment_row5_y), zone_display, font=content_font, fill=text_primary)
-    if fishing_zone.get('rare_fish_quota', 0) == 0:
-        zone_detail = "此区域无稀有鱼"
-        detail_color = text_muted
-    elif fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0) > 0:
-        zone_detail = f"剩余稀有鱼：{fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0)}条"
-        detail_color = success_color
-    else:
-        zone_detail = "今日稀有鱼已捕完"
-        detail_color = text_muted
+    zone_detail = "基础钓鱼区域"
+    detail_color = text_muted
     draw.text((right_col_x, equipment_row6_y), zone_detail, font=tiny_font, fill=detail_color)
 
     # 状态信息区域 - 合并今日状态和钓鱼状态
@@ -432,16 +423,12 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
             }
 
     # 获取钓鱼区域信息
-    fishing_zone = None
-    if user.fishing_zone_id:
-        zone = inventory_repo.get_zone_by_id(user.fishing_zone_id)
-        if zone:
-            fishing_zone = {
-                'name': zone.name,
-                'description': zone.description,
-                'rare_fish_quota': zone.daily_rare_fish_quota if hasattr(zone, 'daily_rare_fish_quota') else 0,
-                'rare_fish_caught': zone.rare_fish_caught_today if hasattr(zone, 'rare_fish_caught_today') else 0
-            }
+    fishing_zone = {
+        'name': '普通池',
+        'description': '基础钓鱼区域',
+        'rare_fish_quota': 0,
+        'rare_fish_caught': 0
+    }
 
     # 计算偷鱼剩余CD时间
     steal_cooldown_remaining = 0

@@ -368,12 +368,7 @@ class OtherService:
         """, (user_id,))
 
         # 获取用户钓鱼区域信息
-        fishing_zone = self.db.fetch_one("""
-            SELECT fz.name, fz.daily_rare_fish_quota, fz.rare_fish_caught_today
-            FROM fishing_zones fz
-            JOIN users u ON fz.id = u.fishing_zone_id
-            WHERE u.user_id = ?
-        """, (user_id,))
+        fishing_zone = None
 
         # 获取鱼塘信息
         pond_info = self.db.fetch_one("""
