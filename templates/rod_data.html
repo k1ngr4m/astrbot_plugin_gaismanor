@@ -74,6 +74,7 @@
                         <th>名称</th>
                         <th>描述</th>
                         <th>稀有度</th>
+                        <th>元素</th>
                         <th>来源</th>
                         <th>购买价格</th>
                         <th>品质加成</th>
@@ -133,8 +134,28 @@
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label for="addElement" class="form-label">元素属性</label>
+                            <select class="form-select" id="addElement">
+                                <option value="">无</option>
+                                <option value="ice">冰</option>
+                                <option value="fire">火</option>
+                                <option value="electric">电</option>
+                                <option value="grass">草</option>
+                                <option value="poison">毒</option>
+                                <option value="illusion">幻</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label for="addPurchaseCost" class="form-label">购买价格(金币)</label>
                             <input type="number" class="form-control" id="addPurchaseCost" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addBonusEffect" class="form-label">奖励效果(JSON格式)</label>
+                            <textarea class="form-control" id="addBonusEffect" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addNarration" class="form-label">叙事文本(每行一个)</label>
+                            <textarea class="form-control" id="addNarration" rows="3"></textarea>
                         </div>
                         <div class="mb-3">
                             <label for="addQualityMod" class="form-label">品质加成</label>
@@ -192,11 +213,31 @@
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label for="editElement" class="form-label">元素属性</label>
+                            <select class="form-select" id="editElement">
+                                <option value="">无</option>
+                                <option value="ice">冰</option>
+                                <option value="fire">火</option>
+                                <option value="electric">电</option>
+                                <option value="grass">草</option>
+                                <option value="poison">毒</option>
+                                <option value="illusion">幻</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label for="editSource" class="form-label">来源</label>
                             <select class="form-select" id="editSource" required>
                                 <option value="shop">商店</option>
                                 <option value="gacha">抽卡</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editBonusEffect" class="form-label">奖励效果(JSON格式)</label>
+                            <textarea class="form-control" id="editBonusEffect" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editNarration" class="form-label">叙事文本(每行一个)</label>
+                            <textarea class="form-control" id="editNarration" rows="3"></textarea>
                         </div>
                         <div class="mb-3">
                             <label for="editPurchaseCost" class="form-label">购买价格(金币)</label>
@@ -269,6 +310,7 @@
                     <td>${rod.name}</td>
                     <td>${rod.description}</td>
                     <td><span class="star">${rarityStars}</span></td>
+                    <td>${rod.element || ''}</td>
                     <td>${rod.source}</td>
                     <td>${rod.purchase_cost || 'N/A'}</td>
                     <td>+${rod.quality_mod}</td>
@@ -377,12 +419,32 @@
             const name = document.getElementById('addName').value;
             const description = document.getElementById('addDescription').value;
             const rarity = parseInt(document.getElementById('addRarity').value);
+            const element = document.getElementById('addElement').value || null;
             const source = document.getElementById('addSource').value;
             const purchaseCost = document.getElementById('addPurchaseCost').value || null;
+            const bonusEffectText = document.getElementById('addBonusEffect').value;
+            const narrationText = document.getElementById('addNarration').value;
             const qualityMod = parseFloat(document.getElementById('addQualityMod').value);
             const quantityMod = parseFloat(document.getElementById('addQuantityMod').value);
             const rareMod = parseFloat(document.getElementById('addRareMod').value);
             const durability = document.getElementById('addDurability').value || null;
+
+            // 处理奖励效果JSON
+            let bonusEffect = null;
+            if (bonusEffectText) {
+                try {
+                    bonusEffect = JSON.parse(bonusEffectText);
+                } catch (e) {
+                    alert('奖励效果必须是有效的JSON格式');
+                    return;
+                }
+            }
+
+            // 处理叙事文本数组
+            let narration = null;
+            if (narrationText) {
+                narration = narrationText.split('\n').filter(line => line.trim() !== '');
+            }
 
             if (!name || !rarity || !source || !qualityMod || !quantityMod) {
                 alert('请填写所有必填字段');
@@ -399,8 +461,11 @@
                         name: name,
                         description: description,
                         rarity: rarity,
+                        element: element,
                         source: source,
                         purchase_cost: purchaseCost ? parseInt(purchaseCost) : null,
+                        bonus_effect: bonusEffect,
+                        narration: narration,
                         quality_mod: qualityMod,
                         quantity_mod: quantityMod,
                         rare_mod: rareMod,
@@ -434,8 +499,24 @@
             document.getElementById('editName').value = rod.name;
             document.getElementById('editDescription').value = rod.description;
             document.getElementById('editRarity').value = rod.rarity;
+            document.getElementById('editElement').value = rod.element || '';
             document.getElementById('editSource').value = rod.source;
             document.getElementById('editPurchaseCost').value = rod.purchase_cost || '';
+
+            // 处理奖励效果JSON
+            if (rod.bonus_effect) {
+                document.getElementById('editBonusEffect').value = JSON.stringify(rod.bonus_effect, null, 2);
+            } else {
+                document.getElementById('editBonusEffect').value = '';
+            }
+
+            // 处理叙事文本
+            if (rod.narration && Array.isArray(rod.narration)) {
+                document.getElementById('editNarration').value = rod.narration.join('\n');
+            } else {
+                document.getElementById('editNarration').value = '';
+            }
+
             document.getElementById('editQualityMod').value = rod.quality_mod;
             document.getElementById('editQuantityMod').value = rod.quantity_mod;
             document.getElementById('editRareMod').value = rod.rare_mod;
@@ -452,12 +533,32 @@
             const name = document.getElementById('editName').value;
             const description = document.getElementById('editDescription').value;
             const rarity = parseInt(document.getElementById('editRarity').value);
+            const element = document.getElementById('editElement').value || null;
             const source = document.getElementById('editSource').value;
             const purchaseCost = document.getElementById('editPurchaseCost').value || null;
+            const bonusEffectText = document.getElementById('editBonusEffect').value;
+            const narrationText = document.getElementById('editNarration').value;
             const qualityMod = parseFloat(document.getElementById('editQualityMod').value);
             const quantityMod = parseFloat(document.getElementById('editQuantityMod').value);
             const rareMod = parseFloat(document.getElementById('editRareMod').value);
             const durability = document.getElementById('editDurability').value || null;
+
+            // 处理奖励效果JSON
+            let bonusEffect = null;
+            if (bonusEffectText) {
+                try {
+                    bonusEffect = JSON.parse(bonusEffectText);
+                } catch (e) {
+                    alert('奖励效果必须是有效的JSON格式');
+                    return;
+                }
+            }
+
+            // 处理叙事文本数组
+            let narration = null;
+            if (narrationText) {
+                narration = narrationText.split('\n').filter(line => line.trim() !== '');
+            }
 
             if (!name || !rarity || !source || !qualityMod || !quantityMod) {
                 alert('请填写所有必填字段');
@@ -474,8 +575,11 @@
                         name: name,
                         description: description,
                         rarity: rarity,
+                        element: element,
                         source: source,
                         purchase_cost: purchaseCost ? parseInt(purchaseCost) : null,
+                        bonus_effect: bonusEffect,
+                        narration: narration,
                         quality_mod: qualityMod,
                         quantity_mod: quantityMod,
                         rare_mod: rareMod,

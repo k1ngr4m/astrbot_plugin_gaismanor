@@ -74,6 +74,7 @@
                         <th>名称</th>
                         <th>描述</th>
                         <th>稀有度</th>
+                        <th>元素</th>
                         <th>基础价值</th>
                         <th>重量范围(kg)</th>
                         <th>操作</th>
@@ -120,6 +121,29 @@
                                 <option value="4">★★★★☆ (4星)</option>
                                 <option value="5">★★★★★ (5星)</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addElement" class="form-label">元素属性</label>
+                            <select class="form-select" id="addElement">
+                                <option value="">无</option>
+                                <option value="ice">冰</option>
+                                <option value="fire">火</option>
+                                <option value="electric">电</option>
+                                <option value="grass">草</option>
+                                <option value="poison">毒</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addNarration" class="form-label">叙事文本(每行一个)</label>
+                            <textarea class="form-control" id="addNarration" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addActiveTime" class="form-label">活跃时间(逗号分隔: dawn, morning, noon, afternoon, evening, night, rain, storm)</label>
+                            <input type="text" class="form-control" id="addActiveTime">
+                        </div>
+                        <div class="mb-3">
+                            <label for="addPreferredBait" class="form-label">偏好鱼饵(逗号分隔)</label>
+                            <input type="text" class="form-control" id="addPreferredBait">
                         </div>
                         <div class="mb-3">
                             <label for="addBaseValue" class="form-label">基础价值(金币)</label>
@@ -171,6 +195,29 @@
                                 <option value="4">★★★★☆ (4星)</option>
                                 <option value="5">★★★★★ (5星)</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editElement" class="form-label">元素属性</label>
+                            <select class="form-select" id="editElement">
+                                <option value="">无</option>
+                                <option value="ice">冰</option>
+                                <option value="fire">火</option>
+                                <option value="electric">电</option>
+                                <option value="grass">草</option>
+                                <option value="poison">毒</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editNarration" class="form-label">叙事文本(每行一个)</label>
+                            <textarea class="form-control" id="editNarration" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editActiveTime" class="form-label">活跃时间(逗号分隔: dawn, morning, noon, afternoon, evening, night, rain, storm)</label>
+                            <input type="text" class="form-control" id="editActiveTime">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editPreferredBait" class="form-label">偏好鱼饵(逗号分隔)</label>
+                            <input type="text" class="form-control" id="editPreferredBait">
                         </div>
                         <div class="mb-3">
                             <label for="editBaseValue" class="form-label">基础价值(金币)</label>
@@ -235,6 +282,7 @@
                     <td>${fish.name}</td>
                     <td>${fish.description}</td>
                     <td><span class="star">${rarityStars}</span></td>
+                    <td>${fish.element || ''}</td>
                     <td>${fish.base_value}</td>
                     <td>${(fish.min_weight/1000).toFixed(2)}-${(fish.max_weight/1000).toFixed(2)}</td>
                     <td class="action-buttons">
@@ -342,6 +390,28 @@
             const baseValue = parseInt(document.getElementById('addBaseValue').value);
             const minWeight = parseInt(document.getElementById('addMinWeight').value);
             const maxWeight = parseInt(document.getElementById('addMaxWeight').value);
+            const element = document.getElementById('addElement').value || null;
+            const narrationText = document.getElementById('addNarration').value;
+            const activeTimeText = document.getElementById('addActiveTime').value;
+            const preferredBaitText = document.getElementById('addPreferredBait').value;
+
+            // 处理叙事文本数组
+            let narration = null;
+            if (narrationText) {
+                narration = narrationText.split('\n').filter(line => line.trim() !== '');
+            }
+
+            // 处理活跃时间数组
+            let activeTime = null;
+            if (activeTimeText) {
+                activeTime = activeTimeText.split(',').map(item => item.trim()).filter(item => item !== '');
+            }
+
+            // 处理偏好鱼饵数组
+            let preferredBait = null;
+            if (preferredBaitText) {
+                preferredBait = preferredBaitText.split(',').map(item => item.trim()).filter(item => item !== '');
+            }
 
             if (!name || !rarity || !baseValue || !minWeight || !maxWeight) {
                 alert('请填写所有必填字段');
@@ -365,7 +435,11 @@
                         rarity: rarity,
                         base_value: baseValue,
                         min_weight: minWeight,
-                        max_weight: maxWeight
+                        max_weight: maxWeight,
+                        element: element,
+                        narration: narration,
+                        active_time: activeTime,
+                        preferred_bait: preferredBait
                     })
                 });
 
@@ -398,6 +472,28 @@
             document.getElementById('editBaseValue').value = fish.base_value;
             document.getElementById('editMinWeight').value = fish.min_weight;
             document.getElementById('editMaxWeight').value = fish.max_weight;
+            document.getElementById('editElement').value = fish.element || '';
+
+            // 处理叙事文本
+            if (fish.narration && Array.isArray(fish.narration)) {
+                document.getElementById('editNarration').value = fish.narration.join('\n');
+            } else {
+                document.getElementById('editNarration').value = '';
+            }
+
+            // 处理活跃时间
+            if (fish.active_time && Array.isArray(fish.active_time)) {
+                document.getElementById('editActiveTime').value = fish.active_time.join(', ');
+            } else {
+                document.getElementById('editActiveTime').value = '';
+            }
+
+            // 处理偏好鱼饵
+            if (fish.preferred_bait && Array.isArray(fish.preferred_bait)) {
+                document.getElementById('editPreferredBait').value = fish.preferred_bait.join(', ');
+            } else {
+                document.getElementById('editPreferredBait').value = '';
+            }
 
             // 显示模态框
             const modal = new bootstrap.Modal(document.getElementById('editFishModal'));
@@ -413,6 +509,28 @@
             const baseValue = parseInt(document.getElementById('editBaseValue').value);
             const minWeight = parseInt(document.getElementById('editMinWeight').value);
             const maxWeight = parseInt(document.getElementById('editMaxWeight').value);
+            const element = document.getElementById('editElement').value || null;
+            const narrationText = document.getElementById('editNarration').value;
+            const activeTimeText = document.getElementById('editActiveTime').value;
+            const preferredBaitText = document.getElementById('editPreferredBait').value;
+
+            // 处理叙事文本数组
+            let narration = null;
+            if (narrationText) {
+                narration = narrationText.split('\n').filter(line => line.trim() !== '');
+            }
+
+            // 处理活跃时间数组
+            let activeTime = null;
+            if (activeTimeText) {
+                activeTime = activeTimeText.split(',').map(item => item.trim()).filter(item => item !== '');
+            }
+
+            // 处理偏好鱼饵数组
+            let preferredBait = null;
+            if (preferredBaitText) {
+                preferredBait = preferredBaitText.split(',').map(item => item.trim()).filter(item => item !== '');
+            }
 
             if (!name || !rarity || !baseValue || !minWeight || !maxWeight) {
                 alert('请填写所有必填字段');
@@ -436,7 +554,11 @@
                         rarity: rarity,
                         base_value: baseValue,
                         min_weight: minWeight,
-                        max_weight: maxWeight
+                        max_weight: maxWeight,
+                        element: element,
+                        narration: narration,
+                        active_time: activeTime,
+                        preferred_bait: preferredBait
                     })
                 });
 

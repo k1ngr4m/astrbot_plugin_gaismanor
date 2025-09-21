@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple
 import math
+import json
 
 from astrbot import logger
 from ..models.user import User, FishInventory
@@ -14,40 +15,99 @@ class FishingService:
         self.db = db_manager
         self.achievement_service = AchievementService(db_manager)
 
+        # 元素克制关系
+        # key: 攻击方元素, value: {被克制元素: 倍率}
+        self.element_advantages = {
+            "ice": {"fire": 1.5},      # 冰克火
+            "fire": {"grass": 2.0},    # 火克草
+            "electric": {"water": 2.0, "flying": 2.0},  # 电克水和飞行
+            "grass": {"water": 1.5, "ground": 1.5},     # 草克水和地面
+            "poison": {"grass": 1.5},  # 毒克草
+            "illusion": {"all": 1.2}   # 幻属性对所有都有加成
+        }
+
     def get_fish_templates(self) -> List[FishTemplate]:
         """获取所有鱼类模板"""
         results = self.db.fetch_all("SELECT * FROM fish_templates")
-        return [
-            FishTemplate(
+        fish_templates = []
+        for row in results:
+            # 解析JSON字段
+            narration = None
+            active_time = None
+            preferred_bait = None
+
+            if row['narration']:
+                try:
+                    narration = json.loads(row['narration'])
+                except json.JSONDecodeError:
+                    narration = None
+
+            if row['active_time']:
+                try:
+                    active_time = json.loads(row['active_time'])
+                except json.JSONDecodeError:
+                    active_time = None
+
+            if row['preferred_bait']:
+                try:
+                    preferred_bait = json.loads(row['preferred_bait'])
+                except json.JSONDecodeError:
+                    preferred_bait = None
+
+            fish_templates.append(FishTemplate(
                 id=row['id'],
                 name=row['name'],
                 description=row['description'],
-                rarity=row['rarity'],
+                rarity=int(row['rarity']),
                 base_value=row['base_value'],
                 min_weight=row['min_weight'],
                 max_weight=row['max_weight'],
+                element=row['element'],
+                narration=narration,
+                active_time=active_time,
+                preferred_bait=preferred_bait,
                 icon_url=row['icon_url']
-            ) for row in results
-        ]
+            ))
+        return fish_templates
 
     def get_rod_templates(self) -> List[RodTemplate]:
         """获取所有鱼竿模板"""
         results = self.db.fetch_all("SELECT * FROM rod_templates")
-        return [
-            RodTemplate(
+        rod_templates = []
+        for row in results:
+            # 解析JSON字段
+            bonus_effect = None
+            narration = None
+
+            if row['bonus_effect']:
+                try:
+                    bonus_effect = json.loads(row['bonus_effect'])
+                except json.JSONDecodeError:
+                    bonus_effect = None
+
+            if row['narration']:
+                try:
+                    narration = json.loads(row['narration'])
+                except json.JSONDecodeError:
+                    narration = None
+
+            rod_templates.append(RodTemplate(
                 id=row['id'],
                 name=row['name'],
                 description=row['description'],
-                rarity=row['rarity'],
+                rarity=int(row['rarity']),
                 source=row['source'],
                 purchase_cost=row['purchase_cost'],
                 quality_mod=row['quality_mod'],
                 quantity_mod=row['quantity_mod'],
                 rare_mod=row['rare_mod'],
                 durability=row['durability'],
+                element=row['element'],
+                bonus_effect=bonus_effect,
+                narration=narration,
                 icon_url=row['icon_url']
-            ) for row in results
-        ]
+            ))
+        return rod_templates
 
     def get_accessory_templates(self) -> List[AccessoryTemplate]:
         """获取所有饰品模板"""
@@ -57,7 +117,7 @@ class FishingService:
                 id=row['id'],
                 name=row['name'],
                 description=row['description'],
-                rarity=row['rarity'],
+                rarity=int(row['rarity']),
                 slot_type=row['slot_type'],
                 quality_mod=row['quality_mod'],
                 quantity_mod=row['quantity_mod'],
@@ -76,7 +136,7 @@ class FishingService:
                 id=row['id'],
                 name=row['name'],
                 description=row['description'],
-                rarity=row['rarity'],
+                rarity=int(row['rarity']),
                 effect_description=row['effect_description'],
                 duration_minutes=row['duration_minutes'],
                 cost=row['cost'],
@@ -104,6 +164,24 @@ class FishingService:
             return False, "金币不足，无法钓鱼"
 
         return True, "可以钓鱼"
+
+    def _calculate_element_bonus(self, rod_element: Optional[str], fish_element: Optional[str]) -> float:
+        """计算元素克制加成"""
+        # 如果没有元素属性，无加成
+        if not rod_element or not fish_element:
+            return 1.0
+
+        # 检查是否有克制关系
+        if rod_element in self.element_advantages:
+            advantages = self.element_advantages[rod_element]
+            # 幻属性对所有都有加成
+            if "all" in advantages:
+                return advantages["all"]
+            # 检查是否克制目标元素
+            elif fish_element in advantages:
+                return advantages[fish_element]
+
+        return 1.0
 
     def fish(self, user: User) -> FishingResult:
         """执行钓鱼操作"""
@@ -143,12 +221,18 @@ class FishingService:
 
         # 根据稀有度权重选择鱼类
         # 稀有度越高，权重越低（越难钓到）
-        weights = [1.0 / (fish.rarity ** 2) for fish in fish_templates]
+        weights = [1.0 / (int(fish.rarity) ** 2) for fish in fish_templates]
         caught_fish = random.choices(fish_templates, weights=weights)[0]
+
+        # 计算元素克制加成
+        element_bonus = 1.0
+        if equipped_rod and caught_fish:
+            element_bonus = self._calculate_element_bonus(equipped_rod.element, caught_fish.element)
 
         # 计算鱼的重量和价值
         final_weight = random.uniform(caught_fish.min_weight / 1000.0, caught_fish.max_weight / 1000.0)
-        final_value = int(caught_fish.base_value * (final_weight * 2))
+        # 应用元素克制加成到价值
+        final_value = int(caught_fish.base_value * (final_weight * 2) * element_bonus)
 
         # 添加到用户鱼类库存
         self.db.execute_query(
@@ -199,7 +283,11 @@ class FishingService:
         newly_unlocked = self.achievement_service.check_achievements(user)
 
         # 构造返回消息，包含成就解锁信息
-        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币\n获得经验: {exp_gained}点{level_up_message}"
+        element_message = ""
+        if element_bonus > 1.0:
+            element_message = f"\n✨ 元素克制加成: {element_bonus:.1f}x"
+
+        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币\n获得经验: {exp_gained}点{element_message}{level_up_message}"
 
         # 如果有新解锁的成就，添加到消息中
         if newly_unlocked:
@@ -212,7 +300,7 @@ class FishingService:
     def _calculate_exp_gain(self, fish: FishTemplate, weight: float, value: int, user_level: int = 1) -> int:
         """计算钓鱼获得的经验值"""
         # 基础经验 = 鱼的稀有度 * 10 + 价值 / 10 + 重量 / 10
-        base_exp = fish.rarity * 10 + value // 10 + int(weight * 10)
+        base_exp = int(fish.rarity) * 10 + value // 10 + int(weight * 10)
 
         # 等级加成：每级增加1%经验
         level_bonus = 1 + (user_level - 1) * 0.01
@@ -249,17 +337,36 @@ class FishingService:
             (user_id,)
         )
         if result:
+            # 解析JSON字段
+            bonus_effect = None
+            narration = None
+
+            if result['bonus_effect']:
+                try:
+                    bonus_effect = json.loads(result['bonus_effect'])
+                except json.JSONDecodeError:
+                    bonus_effect = None
+
+            if result['narration']:
+                try:
+                    narration = json.loads(result['narration'])
+                except json.JSONDecodeError:
+                    narration = None
+
             return RodTemplate(
                 id=result['id'],
                 name=result['name'],
                 description=result['description'],
-                rarity=result['rarity'],
+                rarity=int(result['rarity']),
                 source=result['source'],
                 purchase_cost=result['purchase_cost'],
                 quality_mod=result['quality_mod'],
                 quantity_mod=result['quantity_mod'],
                 rare_mod=result['rare_mod'],
                 durability=result['durability'],
+                element=result['element'],
+                bonus_effect=bonus_effect,
+                narration=narration,
                 icon_url=result['icon_url']
             )
         return None
@@ -277,7 +384,7 @@ class FishingService:
                 id=result['id'],
                 name=result['name'],
                 description=result['description'],
-                rarity=result['rarity'],
+                rarity=int(result['rarity']),
                 slot_type=result['slot_type'],
                 quality_mod=result['quality_mod'],
                 quantity_mod=result['quantity_mod'],

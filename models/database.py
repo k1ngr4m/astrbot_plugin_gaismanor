@@ -1,12 +1,13 @@
 import sqlite3
 import os
 import time
+import json
 from typing import Optional
 from astrbot.api import logger
 from ..data.initial_data import FISH_DATA, BAIT_DATA, ROD_DATA, ACCESSORY_DATA
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "data/gaismanor.db"):
+    def __init__(self, db_path: str = "data/gaismanor_test.db"):
         # 确保data目录存在
         os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
         self.db_path = db_path
@@ -55,6 +56,10 @@ class DatabaseManager:
                 base_value INTEGER NOT NULL,
                 min_weight INTEGER NOT NULL,
                 max_weight INTEGER NOT NULL,
+                element TEXT,  -- 元素属性: ice, fire, electric, grass, poison
+                narration TEXT,  -- 叙事文本 (JSON格式)
+                active_time TEXT,  -- 活跃时间 (JSON格式)
+                preferred_bait TEXT,  -- 偏好鱼饵 (JSON格式)
                 icon_url TEXT
             )
         ''')
@@ -72,6 +77,9 @@ class DatabaseManager:
                 quantity_mod REAL DEFAULT 1.0,
                 rare_mod REAL DEFAULT 0.0,
                 durability INTEGER,
+                element TEXT,  -- 元素属性: ice, fire, electric, grass, poison, illusion
+                bonus_effect TEXT,  -- 奖励效果 (JSON格式)
+                narration TEXT,  -- 叙事文本 (JSON格式)
                 icon_url TEXT
             )
         ''')
@@ -431,40 +439,142 @@ class DatabaseManager:
 
         # 插入鱼类数据
         for fish in FISH_DATA:
+            # 检查元组格式
+            if isinstance(fish[0], int):
+                # 带ID的格式: (id, name, description, rarity, base_value, min_weight, max_weight, element, narration, active_time, preferred_bait, icon_url)
+                name = fish[1]
+                description = fish[2]
+                rarity = int(fish[3])  # 确保转换为整数
+                base_value = fish[4]
+                min_weight = fish[5]
+                max_weight = fish[6]
+                element = fish[7] if len(fish) > 7 else None
+                narration = fish[8] if len(fish) > 8 else None
+                active_time = fish[9] if len(fish) > 9 else None
+                preferred_bait = fish[10] if len(fish) > 10 else None
+                icon_url = fish[11] if len(fish) > 11 else None
+            else:
+                # 不带ID的格式: (name, description, rarity, base_value, min_weight, max_weight, element, narration, active_time, preferred_bait, icon_url)
+                name = fish[0]
+                description = fish[1]
+                rarity = int(fish[2])  # 确保转换为整数
+                base_value = fish[3]
+                min_weight = fish[4]
+                max_weight = fish[5]
+                element = fish[6] if len(fish) > 6 else None
+                narration = fish[7] if len(fish) > 7 else None
+                active_time = fish[8] if len(fish) > 8 else None
+                preferred_bait = fish[9] if len(fish) > 9 else None
+                icon_url = fish[10] if len(fish) > 10 else None
+
+            # 将JSON字符串转换为数据库存储格式
+            narration_json = narration if narration is not None else None
+            active_time_json = active_time if active_time is not None else None
+            preferred_bait_json = preferred_bait if preferred_bait is not None else None
+
             self.execute_query(
                 """INSERT INTO fish_templates
-                   (name, description, rarity, base_value, min_weight, max_weight, icon_url)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                fish
+                   (name, description, rarity, base_value, min_weight, max_weight, element, narration, active_time, preferred_bait, icon_url)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (name, description, rarity, base_value, min_weight, max_weight, element, narration_json, active_time_json, preferred_bait_json, icon_url)
             )
 
         # 插入鱼竿数据
         for rod in ROD_DATA:
-            self.execute_query(
-                """INSERT INTO rod_templates
-                   (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, icon_url)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                rod
-            )
+            # 检查元组长度以确定是否有额外字段
+            if len(rod) == 10:
+                # 旧格式，没有元素属性字段
+                name = rod[0]
+                description = rod[1]
+                rarity = int(rod[2])  # 确保转换为整数
+                source = rod[3]
+                purchase_cost = rod[4]
+                quality_mod = rod[5]
+                quantity_mod = rod[6]
+                rare_mod = rod[7]
+                durability = rod[8]
+                icon_url = rod[9]
+
+                self.execute_query(
+                    """INSERT INTO rod_templates
+                       (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, icon_url)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, icon_url)
+                )
+            else:
+                # 新格式，包含元素属性字段
+                name = rod[0]
+                description = rod[1]
+                rarity = int(rod[2])  # 确保转换为整数
+                source = rod[3]
+                purchase_cost = rod[4]
+                quality_mod = rod[5]
+                quantity_mod = rod[6]
+                rare_mod = rod[7]
+                durability = rod[8]
+                element = rod[9]
+                bonus_effect = rod[10]
+                narration = rod[11]
+                icon_url = rod[12]
+
+                # 将JSON字符串转换为数据库存储格式
+                bonus_effect_json = bonus_effect if bonus_effect is not None else None
+                narration_json = narration if narration is not None else None
+
+                self.execute_query(
+                    """INSERT INTO rod_templates
+                       (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, element, bonus_effect, narration, icon_url)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, element, bonus_effect_json, narration_json, icon_url)
+                )
 
         # 插入饰品数据
         for accessory in ACCESSORY_DATA:
+            # 确保稀有度转换为整数
+            name = accessory[0]
+            description = accessory[1]
+            rarity = int(accessory[2])  # 确保转换为整数
+            slot_type = accessory[3]
+            quality_mod = accessory[4]
+            quantity_mod = accessory[5]
+            rare_mod = accessory[6]
+            coin_mod = accessory[7]
+            other_desc = accessory[8] if len(accessory) > 8 else None
+            icon_url = accessory[9] if len(accessory) > 9 else None
+
             self.execute_query(
                 """INSERT INTO accessory_templates
                    (name, description, rarity, slot_type, quality_mod, quantity_mod, rare_mod, coin_mod, other_desc, icon_url)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                accessory
+                (name, description, rarity, slot_type, quality_mod, quantity_mod, rare_mod, coin_mod, other_desc, icon_url)
             )
 
         # 插入鱼饵数据
         for bait in BAIT_DATA:
+            # 确保稀有度转换为整数
+            name = bait[0]
+            description = bait[1]
+            rarity = int(bait[2])  # 确保转换为整数
+            effect_description = bait[3]
+            duration_minutes = bait[4]
+            cost = bait[5]
+            required_rod_rarity = bait[6]
+            success_rate_modifier = bait[7]
+            rare_chance_modifier = bait[8]
+            garbage_reduction_modifier = bait[9]
+            value_modifier = bait[10]
+            quantity_modifier = bait[11]
+            is_consumable = bait[12]
+
             self.execute_query(
                 """INSERT INTO bait_templates
                    (name, description, rarity, effect_description, duration_minutes, cost, required_rod_rarity,
                     success_rate_modifier, rare_chance_modifier, garbage_reduction_modifier,
                     value_modifier, quantity_modifier, is_consumable)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                bait
+                (name, description, rarity, effect_description, duration_minutes, cost, required_rod_rarity,
+                 success_rate_modifier, rare_chance_modifier, garbage_reduction_modifier,
+                 value_modifier, quantity_modifier, is_consumable)
             )
 
         # 插入卡池数据

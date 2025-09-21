@@ -11,6 +11,10 @@ class FishTemplate:
     base_value: int  # 基础价值
     min_weight: int  # 最小重量(g)
     max_weight: int  # 最大重量(g)
+    element: Optional[str] = None  # 元素属性: ice, fire, electric, grass, poison
+    narration: Optional[list] = None  # 叙事文本
+    active_time: Optional[list] = None  # 活跃时间
+    preferred_bait: Optional[list] = None  # 偏好鱼饵
     icon_url: Optional[str] = None
 
 @dataclass
@@ -26,6 +30,9 @@ class RodTemplate:
     quantity_mod: float = 1.0  # 数量加成
     rare_mod: float = 0.0  # 稀有度加成
     durability: Optional[int] = None  # 耐久度
+    element: Optional[str] = None  # 元素属性: ice, fire, electric, grass, poison, illusion
+    bonus_effect: Optional[dict] = None  # 奖励效果
+    narration: Optional[list] = None  # 叙事文本
     icon_url: Optional[str] = None
 
 @dataclass

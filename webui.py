@@ -198,6 +198,29 @@ def get_fish_data():
     fish_templates = db_manager.fetch_all("SELECT * FROM fish_templates ORDER BY rarity, id")
     fish_list = []
     for fish in fish_templates:
+        # 解析JSON字段
+        narration = None
+        active_time = None
+        preferred_bait = None
+
+        if fish['narration']:
+            try:
+                narration = json.loads(fish['narration'])
+            except json.JSONDecodeError:
+                narration = None
+
+        if fish['active_time']:
+            try:
+                active_time = json.loads(fish['active_time'])
+            except json.JSONDecodeError:
+                active_time = None
+
+        if fish['preferred_bait']:
+            try:
+                preferred_bait = json.loads(fish['preferred_bait'])
+            except json.JSONDecodeError:
+                preferred_bait = None
+
         fish_list.append({
             'id': fish['id'],
             'name': fish['name'],
@@ -206,6 +229,10 @@ def get_fish_data():
             'base_value': fish['base_value'],
             'min_weight': fish['min_weight'],
             'max_weight': fish['max_weight'],
+            'element': fish['element'],
+            'narration': narration,
+            'active_time': active_time,
+            'preferred_bait': preferred_bait,
             'icon_url': fish['icon_url']
         })
     return jsonify(fish_list)
@@ -225,15 +252,24 @@ def add_fish():
         base_value = data.get('base_value')
         min_weight = data.get('min_weight')
         max_weight = data.get('max_weight')
+        element = data.get('element')
+        narration = data.get('narration')
+        active_time = data.get('active_time')
+        preferred_bait = data.get('preferred_bait')
 
         if not all([name, rarity, base_value, min_weight, max_weight]):
             return jsonify({'error': 'Missing required fields'}), 400
 
+        # 将列表转换为JSON字符串存储
+        narration_json = json.dumps(narration) if narration else None
+        active_time_json = json.dumps(active_time) if active_time else None
+        preferred_bait_json = json.dumps(preferred_bait) if preferred_bait else None
+
         db_manager.execute_query(
             """INSERT INTO fish_templates
-               (name, description, rarity, base_value, min_weight, max_weight)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (name, description, rarity, base_value, min_weight, max_weight)
+               (name, description, rarity, base_value, min_weight, max_weight, element, narration, active_time, preferred_bait)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, description, rarity, base_value, min_weight, max_weight, element, narration_json, active_time_json, preferred_bait_json)
         )
 
         return jsonify({'message': 'Fish added successfully'}), 201
@@ -255,15 +291,24 @@ def update_fish(fish_id):
         base_value = data.get('base_value')
         min_weight = data.get('min_weight')
         max_weight = data.get('max_weight')
+        element = data.get('element')
+        narration = data.get('narration')
+        active_time = data.get('active_time')
+        preferred_bait = data.get('preferred_bait')
 
         if not all([name, rarity, base_value, min_weight, max_weight]):
             return jsonify({'error': 'Missing required fields'}), 400
 
+        # 将列表转换为JSON字符串存储
+        narration_json = json.dumps(narration) if narration else None
+        active_time_json = json.dumps(active_time) if active_time else None
+        preferred_bait_json = json.dumps(preferred_bait) if preferred_bait else None
+
         db_manager.execute_query(
             """UPDATE fish_templates SET
-               name=?, description=?, rarity=?, base_value=?, min_weight=?, max_weight=?
+               name=?, description=?, rarity=?, base_value=?, min_weight=?, max_weight=?, element=?, narration=?, active_time=?, preferred_bait=?
                WHERE id=?""",
-            (name, description, rarity, base_value, min_weight, max_weight, fish_id)
+            (name, description, rarity, base_value, min_weight, max_weight, element, narration_json, active_time_json, preferred_bait_json, fish_id)
         )
 
         return jsonify({'message': 'Fish updated successfully'}), 200
@@ -321,6 +366,22 @@ def get_rod_data():
     rod_templates = db_manager.fetch_all("SELECT * FROM rod_templates ORDER BY rarity, id")
     rod_list = []
     for rod in rod_templates:
+        # 解析JSON字段
+        bonus_effect = None
+        narration = None
+
+        if rod['bonus_effect']:
+            try:
+                bonus_effect = json.loads(rod['bonus_effect'])
+            except json.JSONDecodeError:
+                bonus_effect = None
+
+        if rod['narration']:
+            try:
+                narration = json.loads(rod['narration'])
+            except json.JSONDecodeError:
+                narration = None
+
         rod_list.append({
             'id': rod['id'],
             'name': rod['name'],
@@ -332,9 +393,52 @@ def get_rod_data():
             'quantity_mod': rod['quantity_mod'],
             'rare_mod': rod['rare_mod'],
             'durability': rod['durability'],
+            'element': rod['element'],
+            'bonus_effect': bonus_effect,
+            'narration': narration,
             'icon_url': rod['icon_url']
         })
     return jsonify(rod_list)
+
+@app.route('/api/rods', methods=['POST'])
+@login_required
+def add_rod():
+    """添加鱼竿"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description', '')
+        rarity = data.get('rarity')
+        source = data.get('source')
+        purchase_cost = data.get('purchase_cost')
+        quality_mod = data.get('quality_mod', 1.0)
+        quantity_mod = data.get('quantity_mod', 1.0)
+        rare_mod = data.get('rare_mod', 0.0)
+        durability = data.get('durability')
+        element = data.get('element')
+        bonus_effect = data.get('bonus_effect')
+        narration = data.get('narration')
+
+        if not all([name, rarity, source]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # 将字典转换为JSON字符串存储
+        bonus_effect_json = json.dumps(bonus_effect) if bonus_effect else None
+        narration_json = json.dumps(narration) if narration else None
+
+        db_manager.execute_query(
+            """INSERT INTO rod_templates
+               (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, element, bonus_effect, narration)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, element, bonus_effect_json, narration_json)
+        )
+
+        return jsonify({'message': 'Rod added successfully'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # 饰品数据路由
 @app.route('/accessories')
@@ -707,6 +811,64 @@ def remove_bait_from_shop(bait_id):
         db_manager.execute_query("DELETE FROM shop_bait_templates WHERE bait_template_id = ?", (bait_id,))
 
         return jsonify({'message': 'Bait removed from shop successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rods/<int:rod_id>', methods=['PUT'])
+@login_required
+def update_rod(rod_id):
+    """更新鱼竿"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description', '')
+        rarity = data.get('rarity')
+        source = data.get('source')
+        purchase_cost = data.get('purchase_cost')
+        quality_mod = data.get('quality_mod', 1.0)
+        quantity_mod = data.get('quantity_mod', 1.0)
+        rare_mod = data.get('rare_mod', 0.0)
+        durability = data.get('durability')
+        element = data.get('element')
+        bonus_effect = data.get('bonus_effect')
+        narration = data.get('narration')
+
+        if not all([name, rarity, source]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # 将字典转换为JSON字符串存储
+        bonus_effect_json = json.dumps(bonus_effect) if bonus_effect else None
+        narration_json = json.dumps(narration) if narration else None
+
+        db_manager.execute_query(
+            """UPDATE rod_templates SET
+               name=?, description=?, rarity=?, source=?, purchase_cost=?, quality_mod=?, quantity_mod=?, rare_mod=?, durability=?, element=?, bonus_effect=?, narration=?
+               WHERE id=?""",
+            (name, description, rarity, source, purchase_cost, quality_mod, quantity_mod, rare_mod, durability, element, bonus_effect_json, narration_json, rod_id)
+        )
+
+        return jsonify({'message': 'Rod updated successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rods/<int:rod_id>', methods=['DELETE'])
+@login_required
+def delete_rod(rod_id):
+    """删除鱼竿"""
+    if not db_manager:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # 删除相关的商店商品
+        db_manager.execute_query("DELETE FROM shop_rod_templates WHERE rod_template_id=?", (rod_id,))
+
+        # 删除鱼竿模板
+        db_manager.execute_query("DELETE FROM rod_templates WHERE id=?", (rod_id,))
+
+        return jsonify({'message': 'Rod deleted successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
