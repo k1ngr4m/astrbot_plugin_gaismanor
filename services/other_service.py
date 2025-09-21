@@ -92,7 +92,11 @@ class OtherService:
         from ..draw.rank import draw_fishing_ranking
         import os
 
+        # 获取当前群聊ID
+        group_id = event.get_group_id()
+
         # 获取综合排行榜 (前10名) - 综合考虑金币、钓鱼次数和总收益
+        # 根据群聊ID进行排行
         comprehensive_leaderboard = self.db.fetch_all("""
             SELECT u.nickname, u.gold, u.fishing_count, u.total_income,
                    uri.rod_template_id, rt.name as rod_name,
@@ -105,9 +109,10 @@ class OtherService:
             LEFT JOIN accessory_templates at ON uai.accessory_template_id = at.id
             LEFT JOIN user_titles ut ON u.user_id = ut.user_id AND ut.is_active = TRUE
             LEFT JOIN titles t ON ut.title_id = t.id
+            WHERE u.group_id = ?
             ORDER BY (u.gold + u.fishing_count * 10 + u.total_income) DESC
             LIMIT 10
-        """)
+        """, (group_id,))
 
         if not comprehensive_leaderboard:
             yield event.plain_result("暂无排行榜数据！")
