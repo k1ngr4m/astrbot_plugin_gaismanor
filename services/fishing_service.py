@@ -112,8 +112,14 @@ class FishingService:
         if not can_fish:
             return FishingResult(success=False, message=message)
 
-        # 获取用户装备的鱼竿和饰品
+        # 获取用户装备的鱼竿
         equipped_rod = self._get_equipped_rod(user.user_id)
+
+        # 检查是否装备了鱼竿
+        if not equipped_rod:
+            return FishingResult(success=False, message="请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /装备鱼竿 <ID> 来装备鱼竿。")
+
+        # 获取用户装备的饰品
         equipped_accessory = self._get_equipped_accessory(user.user_id)
 
         # 计算钓鱼成功率加成
@@ -149,6 +155,14 @@ class FishingService:
         user.fishing_count += 1
         user.last_fishing_time = int(time.time())
 
+        # 获取用户装备的鱼竿
+        equipped_rod_instance = self._get_equipped_rod_instance(user.user_id)
+
+        # 检查鱼竿耐久度
+        if equipped_rod_instance and equipped_rod_instance['durability'] is not None:
+            if equipped_rod_instance['durability'] <= 0:
+                return FishingResult(success=False, message="鱼竿已损坏，请先维修后再使用！")
+
         # 钓鱼成功，随机选择一种鱼
         fish_templates = self.get_fish_templates()
         if not fish_templates:
@@ -161,7 +175,32 @@ class FishingService:
 
         # 计算鱼的重量和价值
         final_weight = random.uniform(caught_fish.min_weight / 1000.0, caught_fish.max_weight / 1000.0)
-        final_value = int(caught_fish.base_value * (final_weight * 2))
+        # 计算平均重量（公斤）
+        average_weight = ((caught_fish.min_weight + caught_fish.max_weight) / 2) / 1000.0
+        # 使用新的价值公式：价值 = 基础价值 × (1 + 重量 ÷ 平均重量)
+        final_value = int(caught_fish.base_value * (1 + final_weight / average_weight))
+
+        # 消耗鱼竿耐久度（每次钓鱼消耗1-5点耐久度）
+        if equipped_rod_instance:
+            # 如果鱼竿有耐久度限制（不为None）且当前耐久度大于0
+            if equipped_rod_instance['durability'] is not None and equipped_rod_instance['durability'] > 0:
+                durability_cost = random.randint(1, 5)
+                new_durability = max(0, equipped_rod_instance['durability'] - durability_cost)
+
+                # 更新鱼竿耐久度
+                self.db.execute_query(
+                    "UPDATE user_rod_instances SET durability = ? WHERE id = ?",
+                    (new_durability, equipped_rod_instance['id'])
+                )
+
+                # 如果鱼竿损坏，添加提示信息
+                if new_durability <= 0:
+                    message = f"鱼竿在使用过程中损坏了！需要维修后才能继续使用。\n\n"
+                else:
+                    message = ""
+            # 如果鱼竿没有耐久度限制（为None），则不消耗耐久度
+            elif equipped_rod_instance['durability'] is None:
+                message = ""
 
         # 添加到用户鱼类库存
         self.db.execute_query(
@@ -227,7 +266,11 @@ class FishingService:
         newly_unlocked = self.achievement_service.check_achievements(user)
 
         # 构造返回消息，包含成就解锁信息
-        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n\n重量: {final_weight:.2f}kg\n\n价值: {final_value}金币\n\n获得经验: {exp_gained}点{level_up_message}"
+        # 如果鱼竿已损坏，在消息前添加损坏信息
+        if 'message' not in locals():
+            message = ""
+
+        message += f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n\n重量: {final_weight:.2f}kg\n\n价值: {final_value}金币\n\n获得经验: {exp_gained}点{level_up_message}"
 
         # 如果有新解锁的成就，添加到消息中
         if newly_unlocked:
@@ -291,6 +334,15 @@ class FishingService:
                 icon_url=result['icon_url']
             )
         return None
+
+    def _get_equipped_rod_instance(self, user_id: str) -> Optional[dict]:
+        """获取用户装备的鱼竿实例（包含耐久度等实例信息）"""
+        result = self.db.fetch_one(
+            """SELECT uri.* FROM user_rod_instances uri
+               WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
+            (user_id,)
+        )
+        return result
 
     def _get_equipped_accessory(self, user_id: str) -> Optional[AccessoryTemplate]:
         """获取用户装备的饰品"""

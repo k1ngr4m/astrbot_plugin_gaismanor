@@ -14,14 +14,21 @@ class ShopService:
     async def shop_command(self, event: AstrMessageEvent):
         """商店主命令"""
         shop_info = """=== 庄园商店 ===
+
 欢迎来到庄园商店！您可以在这里购买各种钓鱼装备。
 
 可用命令:
+
 /商店鱼竿  - 查看可购买的鱼竿
+
 /商店鱼饵  - 查看可购买的鱼饵
+
 /购买鱼饵 <ID> [数量]  - 购买指定ID的鱼饵
+
 /购买鱼竿 <ID>  - 购买指定ID的鱼竿
+
 /使用鱼饵 <ID>  - 使用指定ID的鱼饵
+
 /使用鱼竿 <ID>  - 装备指定ID的鱼竿
 """
         yield event.plain_result(shop_info)
@@ -34,11 +41,11 @@ class ShopService:
             yield event.plain_result("暂无鱼竿商品")
             return
 
-        rod_info = "=== 鱼竿商店 ===\n"
+        rod_info = "=== 鱼竿商店 ===\n\n"
         for rod in rods:
             rarity_stars = "★" * rod.rarity + "☆" * (5 - rod.rarity)
-            rod_info += f"ID: {rod.id} - {rod.name} {rarity_stars}\n"
-            rod_info += f"  价格: {rod.purchase_cost}金币  品质加成: +{rod.quality_mod}  数量加成: +{rod.quantity_mod}\n"
+            rod_info += f"ID: {rod.id} - {rod.name} {rarity_stars}\n\n"
+            rod_info += f"  价格: {rod.purchase_cost}金币  品质加成: +{rod.quality_mod}  数量加成: +{rod.quantity_mod}\n\n"
             rod_info += f"  描述: {rod.description}\n\n"
 
         yield event.plain_result(rod_info)
@@ -51,11 +58,11 @@ class ShopService:
             yield event.plain_result("暂无鱼饵商品")
             return
 
-        bait_info = "=== 鱼饵商店 ===\n"
+        bait_info = "=== 鱼饵商店 ===\n\n"
         for bait in bait_list:
             rarity_stars = "★" * bait.rarity + "☆" * (5 - bait.rarity)
-            bait_info += f"ID: {bait.id} - {bait.name} {rarity_stars}\n"
-            bait_info += f"  价格: {bait.cost}金币  效果: {bait.effect_description}\n"
+            bait_info += f"ID: {bait.id} - {bait.name} {rarity_stars}\n\n"
+            bait_info += f"  价格: {bait.cost}金币  效果: {bait.effect_description}\n\n"
             bait_info += f"  描述: {bait.description}\n\n"
 
         yield event.plain_result(bait_info)

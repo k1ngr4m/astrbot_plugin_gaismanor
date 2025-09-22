@@ -88,7 +88,9 @@ class SellService:
 
         # 检查鱼竿是否存在且属于用户
         rod = self.db.fetch_one(
-            """SELECT uri.*, rt.name as rod_name, rt.rarity as rod_rarity
+            """SELECT uri.id, uri.user_id, uri.rod_template_id, uri.level, uri.exp,
+                      uri.is_equipped, uri.acquired_at, uri.durability,
+                      rt.name as rod_name, rt.rarity as rod_rarity
                FROM user_rod_instances uri
                JOIN rod_templates rt ON uri.rod_template_id = rt.id
                WHERE uri.id = ? AND uri.user_id = ?""",

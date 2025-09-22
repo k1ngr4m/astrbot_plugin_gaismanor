@@ -66,7 +66,18 @@ class UserService:
 
         # 创建新用户
         user = self.create_user(user_id, platform, nickname)
-        yield event.plain_result(f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n您获得了初始金币: {user.gold}")
+
+        # 为新用户发放新手木竿
+        from ..services.equipment_service import EquipmentService
+        equipment_service = EquipmentService(self.db)
+        rod_given = equipment_service.give_rod_to_user(user_id, 1)  # 1是新手木竿的模板ID
+
+        if rod_given:
+            welcome_message = f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n您获得了初始金币: {user.gold}\n\n您获得了一把新手木竿，可以开始钓鱼了！"
+        else:
+            welcome_message = f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n您获得了初始金币: {user.gold}\n\n（新手木竿发放失败，请联系管理员）"
+
+        yield event.plain_result(welcome_message)
 
     async def sign_in_command(self, event: AstrMessageEvent):
         """签到命令"""

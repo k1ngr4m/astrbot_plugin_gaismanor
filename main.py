@@ -126,6 +126,12 @@ class GaismanorPlugin(Star):
         async for result in self.equipment_service.rod_command(event):
             yield result
 
+    @filter.command("维修鱼竿")
+    async def repair_rod_command(self, event: AstrMessageEvent, rod_id: int = None):
+        """维修鱼竿命令"""
+        async for result in self.equipment_service.repair_rod_command(event, rod_id):
+            yield result
+
     # 🛒 商店与购买
     @filter.command("商店")
     async def shop_command(self, event: AstrMessageEvent):
