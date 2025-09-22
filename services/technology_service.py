@@ -98,7 +98,7 @@ class TechnologyService:
         result = self.db.fetch_one(
             """SELECT ut.id FROM user_technologies ut
                JOIN technologies t ON ut.tech_id = t.id
-               WHERE ut.user_id = ? AND t.name = 'auto_fishing'""",
+               WHERE ut.user_id = ? AND t.name = '自动钓鱼'""",
             (user_id,)
         )
         return result is not None
@@ -238,7 +238,10 @@ class TechnologyService:
             tech_info += f"  {tech.description}\n"
             tech_info += f"  {req_level} | {req_gold} | {req_techs_str}\n\n"
 
-        tech_info += "使用命令解锁科技: /科技树 [科技名称]\n"
+        tech_info += "使用方法:\n"
+        tech_info += "查看科技: /科技树\n"
+        tech_info += "解锁科技: /解锁科技 [科技名称]\n"
+        tech_info += "例如: /解锁科技 自动钓鱼\n"
         yield event.plain_result(tech_info)
 
     async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str):

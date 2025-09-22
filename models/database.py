@@ -458,21 +458,22 @@ class DatabaseManager:
         # 检查是否已有科技数据
         tech_count = self.fetch_one("SELECT COUNT(*) as count FROM technologies")
         if tech_count and tech_count['count'] > 0:
-            return
+            # 检查是否是完整的科技数据，如果不是则重新插入
+            for i in range(1, 6):
+                existing_tech = self.fetch_one("SELECT id FROM technologies WHERE id = ?", (i,))
+                if not existing_tech:
+                    # 如果缺少某个科技，则清空并重新插入所有科技数据
+                    self.execute_query("DELETE FROM technologies")
+                    break
+            else:
+                # 如果所有科技都存在，则不重新插入
+                return
 
         # 科技树数据
         TECHNOLOGY_DATA = [
             # 自动钓鱼科技
-            (1, "auto_fishing", "达到5级后可解锁自动钓鱼功能", 5, 1000, "[]", "auto_fishing", 1, "自动钓鱼", current_time),
-            # 鱼塘扩容科技
-            (2, "鱼塘扩容I", "将鱼塘容量从50提升到100", 10, 2000, "[1]", "fish_pond_capacity", 50, "鱼塘扩容I", current_time),
-            # 钓鱼成功率提升科技
-            (3, "钓鱼技巧I", "提升钓鱼成功率5%", 15, 3000, "[1]", "fishing_success_rate", 5, "钓鱼技巧I", current_time),
-            # 鱼塘扩容科技II
-            (4, "鱼塘扩容II", "将鱼塘容量从100提升到200", 20, 5000, "[2]", "fish_pond_capacity", 100, "鱼塘扩容II", current_time),
-            # 钓鱼成功率提升科技II
-            (5, "钓鱼技巧II", "提升钓鱼成功率10%", 25, 8000, "[3]", "fishing_success_rate", 10, "钓鱼技巧II", current_time),
-        ]
+            (1, "自动钓鱼", "达到5级后可解锁自动钓鱼功能", 5, 1000, "[]", "auto_fishing", 1, "自动钓鱼", current_time),
+]
 
         # 插入科技数据
         for tech in TECHNOLOGY_DATA:
@@ -485,14 +486,6 @@ class DatabaseManager:
 
     def _init_base_data(self):
         """初始化基础数据"""
-        # 检查是否已有数据（检查鱼类数据作为代表）
-        fish_count = self.fetch_one("SELECT COUNT(*) as count FROM fish_templates")
-        if fish_count and fish_count['count'] > 0:
-            # 如果已有数据，只插入成就和称号数据（如果不存在）
-            self._init_achievements_and_titles()
-            self._init_technology_data()
-            return
-
         # 插入鱼类数据
         for fish in FISH_DATA:
             self.execute_query(
@@ -601,6 +594,8 @@ class DatabaseManager:
                        VALUES (?, ?, ?, '', 0)""",
                     (title[0], title[1], title[2])
                 )
+        self._init_achievements_and_titles()
+        self._init_technology_data()
 
     def execute_query(self, query: str, params: tuple = ()):
         """执行查询语句"""
