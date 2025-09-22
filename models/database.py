@@ -487,7 +487,7 @@ class DatabaseManager:
         # 科技树数据
         TECHNOLOGY_DATA = [
             # 自动钓鱼科技
-            (1, "自动钓鱼", "达到5级后可解锁自动钓鱼功能", 5, 1000, "[]", "auto_fishing", 1, "自动钓鱼", current_time),
+            (1, "自动钓鱼", "可解锁自动钓鱼功能", 2, 1000, "[]", "auto_fishing", 1, "自动钓鱼", current_time),
 ]
 
         # 插入科技数据

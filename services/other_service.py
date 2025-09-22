@@ -214,8 +214,8 @@ class OtherService:
         log_info = "=== 钓鱼记录 ===\n\n"
 
         for log in fishing_logs:
-            # 格式化时间
-            log_time = datetime.fromtimestamp(log['timestamp']).strftime('%Y-%m-%d %H:%M')
+            # 格式化时间到秒
+            log_time = datetime.fromtimestamp(log['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
 
             # 钓鱼结果
             if log['success']:
@@ -628,8 +628,8 @@ class OtherService:
         log_info = "=== 擦弹记录 ===\n\n"
 
         for log in wipe_bomb_logs:
-            # 格式化时间
-            log_time = datetime.fromtimestamp(log['timestamp']).strftime('%Y-%m-%d %H:%M')
+            # 格式化时间到秒
+            log_time = datetime.fromtimestamp(log['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
 
             log_info += f"[{log_time}]\n"
             log_info += f"  投入金币: {log['bet_amount']}\n"

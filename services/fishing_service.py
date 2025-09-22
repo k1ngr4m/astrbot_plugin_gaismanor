@@ -94,7 +94,7 @@ class FishingService:
         """检查用户是否可以钓鱼"""
         # 检查冷却时间 (默认3分钟)
         current_time = int(time.time())
-        cooldown = 180  # 3分钟冷却时间
+        cooldown = 20  # 3分钟冷却时间
 
         # 获取用户装备的鱼竿，用于计算冷却时间减成
         equipped_rod = self._get_equipped_rod(user.user_id)

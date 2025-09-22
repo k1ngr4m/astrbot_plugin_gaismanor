@@ -166,6 +166,17 @@ class UserService:
         # 更新用户数据
         self.update_user(user)
 
+        # 检查并自动解锁科技
+        if new_level > old_level:
+            unlocked_techs = self.check_and_unlock_technologies(user)
+
+            # 如果有新解锁的科技，添加到返回消息中
+            if unlocked_techs:
+                tech_messages = []
+                for tech in unlocked_techs:
+                    tech_messages.append(f"🎉 成功解锁科技: {tech.display_name}！\n{tech.description}")
+                tech_unlock_message = "\n\n".join(tech_messages)
+
         # 记录签到
         self.db.execute_query(
             """INSERT INTO sign_in_logs
@@ -187,6 +198,10 @@ class UserService:
                     level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
                 else:
                     level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
+
+            # 如果有新解锁的科技，添加到升级信息中
+            if 'tech_unlock_message' in locals():
+                level_up_message += f"\n\n{tech_unlock_message}"
 
         message = f"签到成功！\n\n获得金币: {reward_gold}\n获得经验: {reward_exp}点{level_up_message}\n\n连续签到: {streak}天"
 

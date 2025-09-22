@@ -240,7 +240,7 @@ class TechnologyService:
 
         tech_info += "使用方法:\n"
         tech_info += "查看科技: /科技树\n"
-        tech_info += "当您达到科技的等级要求时，科技将自动解锁\n"
+        tech_info += "当您达到科技的等级要求时，使用 /解锁科技 科技名称 解锁科技\n"
         yield event.plain_result(tech_info)
 
     async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str):
