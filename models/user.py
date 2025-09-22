@@ -18,6 +18,7 @@ class User:
     auto_fishing: bool = False  # 是否开启自动钓鱼
     total_fishing_count: int = 0  # 总钓鱼次数
     total_coins_earned: int = 0  # 累计获得的金币数
+    fish_pond_capacity: int = 50  # 鱼塘容量，默认50
     created_at: int = field(default_factory=lambda: int(time.time()))
     updated_at: int = field(default_factory=lambda: int(time.time()))
 

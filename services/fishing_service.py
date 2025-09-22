@@ -94,7 +94,7 @@ class FishingService:
         """检查用户是否可以钓鱼"""
         # 检查冷却时间 (默认3分钟)
         current_time = int(time.time())
-        cooldown = 180  # 3分钟冷却时间
+        cooldown = 10  # 3分钟冷却时间
         if current_time - user.last_fishing_time < cooldown:
             remaining = cooldown - (current_time - user.last_fishing_time)
             return False, f"还在冷却中，请等待 {remaining} 秒后再钓鱼"
@@ -111,11 +111,6 @@ class FishingService:
         can_fish, message = self.can_fish(user)
         if not can_fish:
             return FishingResult(success=False, message=message)
-
-        # 扣除钓鱼费用
-        user.gold -= 10
-        user.fishing_count += 1
-        user.last_fishing_time = int(time.time())
 
         # 获取用户装备的鱼竿和饰品
         equipped_rod = self._get_equipped_rod(user.user_id)
@@ -134,7 +129,25 @@ class FishingService:
 
         if random.random() > final_catch_rate:
             # 钓鱼失败
+            # 即使失败也扣除费用并更新冷却时间
+            user.gold -= 10
+            user.fishing_count += 1
+            user.last_fishing_time = int(time.time())
+
+            # 更新用户数据到数据库
+            self.db.execute_query(
+                """UPDATE users SET
+                    gold=?, fishing_count=?, last_fishing_time=?
+                    WHERE user_id=?""",
+                (user.gold, user.fishing_count, user.last_fishing_time, user.user_id)
+            )
+
             return FishingResult(success=False, message="这次没有钓到鱼，再试试看吧！")
+
+        # 钓鱼成功才扣除费用并更新冷却时间
+        user.gold -= 10
+        user.fishing_count += 1
+        user.last_fishing_time = int(time.time())
 
         # 钓鱼成功，随机选择一种鱼
         fish_templates = self.get_fish_templates()
@@ -168,15 +181,30 @@ class FishingService:
 
         # 检查是否升级
         old_level = user.level
-        user.level = self._calculate_level(user.exp)
+        new_level = self._calculate_level(user.exp)
+
+        # 如果升级了，给予金币奖励
+        level_up_reward = 0
+        if new_level > old_level:
+            # 从用户服务导入奖励计算函数
+            from ..services.user_service import UserService
+            user_service = UserService(self.db)
+            for level in range(old_level + 1, new_level + 1):
+                level_up_reward += user_service._get_level_up_reward(level)
+            user.gold += level_up_reward
+
+        user.level = new_level
 
         # 如果升级了，添加升级信息
         level_up_message = ""
         if user.level > old_level:
-            if user.level >= 100:
-                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
+            if level_up_reward > 0:
+                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！获得金币奖励: {level_up_reward}"
             else:
-                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
+                if user.level >= 100:
+                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
+                else:
+                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
 
         # 记录钓鱼日志
         self.db.execute_query(
@@ -186,7 +214,7 @@ class FishingService:
             (user.user_id, caught_fish.id, final_weight, final_value, True, int(time.time()))
         )
 
-        # 更新用户数据到数据库（包含金币更新，以扣除钓鱼费用）
+        # 更新用户数据到数据库
         self.db.execute_query(
             """UPDATE users SET
                 gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?, exp=?, level=?
@@ -199,7 +227,7 @@ class FishingService:
         newly_unlocked = self.achievement_service.check_achievements(user)
 
         # 构造返回消息，包含成就解锁信息
-        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n重量: {final_weight:.2f}kg\n价值: {final_value}金币\n获得经验: {exp_gained}点{level_up_message}"
+        message = f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n\n重量: {final_weight:.2f}kg\n\n价值: {final_value}金币\n\n获得经验: {exp_gained}点{level_up_message}"
 
         # 如果有新解锁的成就，添加到消息中
         if newly_unlocked:

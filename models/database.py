@@ -39,6 +39,7 @@ class DatabaseManager:
                 auto_fishing BOOLEAN DEFAULT FALSE,
                 total_fishing_count INTEGER DEFAULT 0,
                 total_coins_earned INTEGER DEFAULT 0,
+                fish_pond_capacity INTEGER DEFAULT 50,
                 current_bait_id INTEGER,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL

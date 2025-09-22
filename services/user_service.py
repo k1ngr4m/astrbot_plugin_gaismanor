@@ -27,6 +27,31 @@ class UserService:
         capped_level = min(level, 100)
         return 100 * (capped_level ** 2)
 
+    def _get_level_up_reward(self, level: int) -> int:
+        """根据等级获取升级奖励金币"""
+        if 1 <= level <= 10:
+            return 50
+        elif 11 <= level <= 20:
+            return 100
+        elif 21 <= level <= 30:
+            return 200
+        elif 31 <= level <= 40:
+            return 400
+        elif 41 <= level <= 50:
+            return 800
+        elif 51 <= level <= 60:
+            return 1600
+        elif 61 <= level <= 70:
+            return 3200
+        elif 71 <= level <= 80:
+            return 6400
+        elif 81 <= level <= 90:
+            return 12800
+        elif 91 <= level <= 100:
+            return 25600
+        else:
+            return 0
+
     async def register_command(self, event: AstrMessageEvent):
         """用户注册命令"""
         user_id = event.get_sender_id()
@@ -85,7 +110,16 @@ class UserService:
 
         # 检查是否升级
         old_level = user.level
-        user.level = self._calculate_level(user.exp)
+        new_level = self._calculate_level(user.exp)
+
+        # 如果升级了，给予金币奖励
+        level_up_reward = 0
+        if new_level > old_level:
+            for level in range(old_level + 1, new_level + 1):
+                level_up_reward += self._get_level_up_reward(level)
+            user.gold += level_up_reward
+
+        user.level = new_level
 
         # 更新用户数据
         self.update_user(user)
@@ -104,10 +138,13 @@ class UserService:
         # 构造返回消息
         level_up_message = ""
         if user.level > old_level:
-            if user.level >= 100:
-                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
+            if level_up_reward > 0:
+                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！获得金币奖励: {level_up_reward}"
             else:
-                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
+                if user.level >= 100:
+                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
+                else:
+                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
 
         message = f"签到成功！\n\n获得金币: {reward_gold}\n获得经验: {reward_exp}点{level_up_message}\n\n连续签到: {streak}天"
 
@@ -147,18 +184,22 @@ class UserService:
         exp_for_current_level = next_level_required_exp - current_level_required_exp
 
         message = f"📊 等级信息\n\n"
-        message += f"当前等级: {user.level}\n"
-        message += f"当前经验: {user.exp}\n"
+        message += f"当前等级: {user.level}\n\n"
+        message += f"当前经验: {user.exp}\n\n"
 
         if user.level >= 100:
-            message += "恭喜您已达到最高等级！\n"
+            message += "恭喜您已达到最高等级！\n\n"
             message += "您已解锁所有等级特权！"
         else:
-            message += f"升级进度: {exp_in_current_level}/{exp_for_current_level}\n"
+            message += f"升级进度: {exp_in_current_level}/{exp_for_current_level}\n\n"
             if exp_needed > 0:
-                message += f"距离升级还需: {exp_needed} 经验"
+                message += f"距离升级还需: {exp_needed} 经验\n\n"
+
+                # 显示下一级升级奖励
+                next_reward = self._get_level_up_reward(user.level + 1)
+                message += f"下一等级奖励: {next_reward} 金币"
             else:
-                message += "恭喜您已达到最高等级！"
+                message += "恭喜您已达到最高等级！\n\n"
 
         yield event.plain_result(message)
 
@@ -183,6 +224,7 @@ class UserService:
                 auto_fishing=result['auto_fishing'],
                 total_fishing_count=result['total_fishing_count'],
                 total_coins_earned=result['total_coins_earned'],
+                fish_pond_capacity=result['fish_pond_capacity'],
                 created_at=result['created_at'],
                 updated_at=result['updated_at']
             )
@@ -197,13 +239,13 @@ class UserService:
             """INSERT INTO users (
                 user_id, platform, nickname, gold, exp, level, fishing_count,
                 total_fish_weight, total_income, last_fishing_time,
-                auto_fishing, total_fishing_count, total_coins_earned, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                auto_fishing, total_fishing_count, total_coins_earned, fish_pond_capacity, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 user.user_id, user.platform, user.nickname, user.gold, user.exp, user.level,
                 user.fishing_count, user.total_fish_weight, user.total_income,
                 user.last_fishing_time, user.auto_fishing, user.total_fishing_count,
-                user.total_coins_earned, user.created_at, user.updated_at
+                user.total_coins_earned, user.fish_pond_capacity, user.created_at, user.updated_at
             )
         )
         return user
@@ -215,12 +257,12 @@ class UserService:
             """UPDATE users SET
                 platform=?, nickname=?, gold=?, exp=?, level=?, fishing_count=?,
                 total_fish_weight=?, total_income=?, last_fishing_time=?,
-                auto_fishing=?, total_fishing_count=?, total_coins_earned=?, updated_at=?
+                auto_fishing=?, total_fishing_count=?, total_coins_earned=?, fish_pond_capacity=?, updated_at=?
             WHERE user_id=?""",
             (
                 user.platform, user.nickname, user.gold, user.exp, user.level, user.fishing_count,
                 user.total_fish_weight, user.total_income, user.last_fishing_time,
-                user.auto_fishing, user.total_fishing_count, user.total_coins_earned, user.updated_at, user.user_id
+                user.auto_fishing, user.total_fishing_count, user.total_coins_earned, user.fish_pond_capacity, user.updated_at, user.user_id
             )
         )
 
