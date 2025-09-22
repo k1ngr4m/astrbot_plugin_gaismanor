@@ -94,7 +94,15 @@ class FishingService:
         """检查用户是否可以钓鱼"""
         # 检查冷却时间 (默认3分钟)
         current_time = int(time.time())
-        cooldown = 10  # 3分钟冷却时间
+        cooldown = 180  # 3分钟冷却时间
+
+        # 获取用户装备的鱼竿，用于计算冷却时间减成
+        equipped_rod = self._get_equipped_rod(user.user_id)
+
+        # 如果装备了"冷静之竿"，减少10%冷却时间
+        if equipped_rod and equipped_rod.name == "冷静之竿":
+            cooldown = int(cooldown * 0.9)  # 减少10%冷却时间
+
         if current_time - user.last_fishing_time < cooldown:
             remaining = cooldown - (current_time - user.last_fishing_time)
             return False, f"还在冷却中，请等待 {remaining} 秒后再钓鱼"
@@ -164,9 +172,15 @@ class FishingService:
                 return FishingResult(success=False, message="鱼竿已损坏，请先维修后再使用！")
 
         # 钓鱼成功，随机选择一种鱼
-        fish_templates = self.get_fish_templates()
-        if not fish_templates:
+        # 限制鱼竿只能钓到稀有度小于等于鱼竿稀有度的鱼
+        all_fish_templates = self.get_fish_templates()
+        if not all_fish_templates:
             return FishingResult(success=False, message="暂无鱼类数据")
+
+        # 根据鱼竿稀有度过滤可钓鱼类
+        fish_templates = [fish for fish in all_fish_templates if fish.rarity <= equipped_rod.rarity]
+        if not fish_templates:
+            return FishingResult(success=False, message="当前装备的鱼竿无法钓到任何鱼类，请使用更高级的鱼竿！")
 
         # 根据稀有度权重选择鱼类
         # 稀有度越高，权重越低（越难钓到）
@@ -216,6 +230,14 @@ class FishingService:
 
         # 增加经验（根据鱼的稀有度和价值）
         exp_gained = self._calculate_exp_gain(caught_fish, final_weight, final_value, user.level)
+
+        # 获取用户装备的鱼竿，用于计算经验加成
+        equipped_rod = self._get_equipped_rod(user.user_id)
+
+        # 如果装备了"长者之竿"，增加5%经验
+        if equipped_rod and equipped_rod.name == "长者之竿":
+            exp_gained = int(exp_gained * 1.05)  # 增加5%经验
+
         user.exp += exp_gained
 
         # 检查是否升级
@@ -234,6 +256,19 @@ class FishingService:
 
         user.level = new_level
 
+        # 检查并自动解锁科技
+        if new_level > old_level:
+            from ..services.user_service import UserService
+            user_service = UserService(self.db)
+            unlocked_techs = user_service.check_and_unlock_technologies(user)
+
+            # 如果有新解锁的科技，添加到返回消息中
+            if unlocked_techs:
+                tech_messages = []
+                for tech in unlocked_techs:
+                    tech_messages.append(f"🎉 成功解锁科技: {tech.display_name}！\n{tech.description}")
+                tech_unlock_message = "\n\n".join(tech_messages)
+
         # 如果升级了，添加升级信息
         level_up_message = ""
         if user.level > old_level:
@@ -244,6 +279,10 @@ class FishingService:
                     level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
                 else:
                     level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
+
+            # 如果有新解锁的科技，添加到升级信息中
+            if 'tech_unlock_message' in locals():
+                level_up_message += f"\n\n{tech_unlock_message}"
 
         # 记录钓鱼日志
         self.db.execute_query(
@@ -287,6 +326,11 @@ class FishingService:
 
         # 等级加成：每级增加1%经验
         level_bonus = 1 + (user_level - 1) * 0.01
+
+        # 获取用户装备的鱼竿，用于计算经验加成
+        user_id = None
+        # 由于在这个函数中无法直接获取user_id，我们需要在调用时传入
+        # 这里保持原逻辑不变，实际经验加成在fish方法中处理
 
         # 计算最终经验
         final_exp = int(base_exp * level_bonus)

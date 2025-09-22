@@ -23,13 +23,19 @@ class ShopService:
 
 /商店鱼饵  - 查看可购买的鱼饵
 
+/商店饰品  - 查看可购买的饰品
+
 /购买鱼饵 <ID> [数量]  - 购买指定ID的鱼饵
 
 /购买鱼竿 <ID>  - 购买指定ID的鱼竿
 
+/购买饰品 <ID>  - 购买指定ID的饰品
+
 /使用鱼饵 <ID>  - 使用指定ID的鱼饵
 
 /使用鱼竿 <ID>  - 装备指定ID的鱼竿
+
+/使用饰品 <ID>  - 装备指定ID的饰品
 """
         yield event.plain_result(shop_info)
 
@@ -67,6 +73,24 @@ class ShopService:
 
         yield event.plain_result(bait_info)
 
+    async def shop_accessory_command(self, event: AstrMessageEvent):
+        """查看饰品商店商品"""
+        accessory_list = self.get_accessory_shop_items()
+
+        if not accessory_list:
+            yield event.plain_result("暂无饰品商品")
+            return
+
+        accessory_info = "=== 饰品商店 ===\n\n"
+        for accessory in accessory_list:
+            rarity_stars = "★" * accessory.rarity + "☆" * (5 - accessory.rarity)
+            accessory_info += f"ID: {accessory.id} - {accessory.name} {rarity_stars}\n\n"
+            accessory_info += f"  价格: {accessory.cost}金币  品质加成: +{accessory.quality_mod}  数量加成: +{accessory.quantity_mod}\n\n"
+            accessory_info += f"  稀有度加成: +{accessory.rare_mod}  金币加成: +{accessory.coin_mod}\n\n"
+            accessory_info += f"  描述: {accessory.description}\n\n"
+
+        yield event.plain_result(accessory_info)
+
     async def buy_bait_command(self, event: AstrMessageEvent, bait_id: int, quantity: int = 1):
         """购买鱼饵"""
         user_id = event.get_sender_id()
@@ -88,6 +112,28 @@ class ShopService:
             yield event.plain_result(f"成功购买鱼饵: {bait_name} x{quantity}")
         else:
             yield event.plain_result("购买鱼饵失败，请检查金币是否足够或商品是否存在")
+
+    async def buy_accessory_command(self, event: AstrMessageEvent, accessory_id: int):
+        """购买饰品"""
+        user_id = event.get_sender_id()
+        user = self.get_user(user_id)
+
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 购买饰品
+        success = self.buy_accessory(user_id, accessory_id)
+
+        if success:
+            accessory_template = self.db.fetch_one(
+                "SELECT name FROM accessory_templates WHERE id = ?",
+                (accessory_id,)
+            )
+            accessory_name = accessory_template['name'] if accessory_template else "未知饰品"
+            yield event.plain_result(f"成功购买饰品: {accessory_name}")
+        else:
+            yield event.plain_result("购买饰品失败，请检查金币是否足够或商品是否存在")
 
     async def buy_rod_command(self, event: AstrMessageEvent, rod_id: int):
         """购买鱼竿"""
@@ -132,6 +178,41 @@ class ShopService:
 
         # 使用鱼饵（这里简化处理，实际应该应用鱼饵效果）
         yield event.plain_result("鱼饵使用功能正在开发中，敬请期待！")
+
+    async def use_accessory_command(self, event: AstrMessageEvent, accessory_id: int):
+        """装备饰品命令"""
+        from ..services.equipment_service import EquipmentService
+        equipment_service = EquipmentService(self.db)
+
+        user_id = event.get_sender_id()
+        user = self.get_user(user_id)
+
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 检查饰品是否存在
+        accessory_instance = self.db.fetch_one(
+            "SELECT * FROM user_accessory_instances WHERE user_id = ? AND accessory_template_id = ?",
+            (user_id, accessory_id)
+        )
+
+        if not accessory_instance:
+            yield event.plain_result("您没有该饰品")
+            return
+
+        # 装备饰品
+        success = equipment_service.equip_accessory(user_id, accessory_instance['id'])
+
+        if success:
+            accessory_template = self.db.fetch_one(
+                "SELECT name FROM accessory_templates WHERE id = ?",
+                (accessory_id,)
+            )
+            accessory_name = accessory_template['name'] if accessory_template else "未知饰品"
+            yield event.plain_result(f"成功装备饰品: {accessory_name}")
+        else:
+            yield event.plain_result("装备饰品失败")
 
     async def use_rod_command(self, event: AstrMessageEvent, rod_id: int):
         """装备鱼竿命令"""
@@ -220,6 +301,32 @@ class ShopService:
             ) for row in results
         ]
 
+    def get_accessory_shop_items(self) -> List[AccessoryTemplate]:
+        """获取饰品商店商品"""
+        results = self.db.fetch_all("""
+            SELECT at.*,
+                   COALESCE(sat.cost, at.cost) as cost
+            FROM accessory_templates at
+            LEFT JOIN shop_accessory_templates sat ON at.id = sat.accessory_template_id
+            WHERE sat.enabled = 1 OR sat.enabled IS NULL
+            ORDER BY at.rarity, at.id
+        """)
+        return [
+            AccessoryTemplate(
+                id=row['id'],
+                name=row['name'],
+                description=row['description'],
+                rarity=row['rarity'],
+                slot_type=row['slot_type'],
+                quality_mod=row['quality_mod'],
+                quantity_mod=row['quantity_mod'],
+                rare_mod=row['rare_mod'],
+                coin_mod=row['coin_mod'],
+                other_desc=row['other_desc'],
+                icon_url=row['icon_url']
+            ) for row in results
+        ]
+
     def get_user(self, user_id: str) -> Optional[User]:
         """获取用户信息"""
         result = self.db.fetch_one(
@@ -299,6 +406,51 @@ class ShopService:
                    VALUES (?, ?, ?)""",
                 (user_id, bait_id, quantity)
             )
+
+        return True
+
+    def buy_accessory(self, user_id: str, accessory_id: int) -> bool:
+        """购买饰品"""
+        # 获取商店中的饰品信息
+        accessory_info = self.db.fetch_one("""
+            SELECT at.*, COALESCE(sat.cost, at.cost) as cost, sat.stock
+            FROM accessory_templates at
+            LEFT JOIN shop_accessory_templates sat ON at.id = sat.accessory_template_id
+            WHERE at.id = ? AND (sat.enabled = 1 OR sat.enabled IS NULL)
+        """, (accessory_id,))
+
+        if not accessory_info:
+            return False
+
+        # 检查库存是否足够（0表示无限库存）
+        if accessory_info['stock'] is not None and accessory_info['stock'] > 0 and accessory_info['stock'] < 1:
+            return False
+
+        # 检查用户金币是否足够
+        user = self.get_user(user_id)
+        if not user or user.gold < (accessory_info['cost'] or 0):
+            return False
+
+        # 扣除金币
+        self.db.execute_query(
+            "UPDATE users SET gold = gold - ? WHERE user_id = ?",
+            (accessory_info['cost'], user_id)
+        )
+
+        # 减少库存（如果库存不为0）
+        if accessory_info['stock'] is not None and accessory_info['stock'] > 0:
+            self.db.execute_query(
+                "UPDATE shop_accessory_templates SET stock = stock - 1 WHERE accessory_template_id = ?",
+                (accessory_id,)
+            )
+
+        # 添加到用户饰品库存
+        self.db.execute_query(
+            """INSERT INTO user_accessory_instances
+               (user_id, accessory_template_id, is_equipped, acquired_at)
+               VALUES (?, ?, FALSE, ?)""",
+            (user_id, accessory_id, int(time.time()))
+        )
 
         return True
 

@@ -52,6 +52,37 @@ class UserService:
         else:
             return 0
 
+    def check_and_unlock_technologies(self, user: User) -> list:
+        """检查并自动解锁符合条件的科技"""
+        from .technology_service import TechnologyService
+        tech_service = TechnologyService(self.db)
+
+        # 获取所有科技
+        all_technologies = tech_service.get_all_technologies()
+        user_tech_ids = [ut.tech_id for ut in tech_service.get_user_technologies(user.user_id)]
+
+        unlocked_techs = []
+
+        # 检查每个科技是否满足解锁条件
+        for tech in all_technologies:
+            # 如果已经解锁，跳过
+            if tech.id in user_tech_ids:
+                continue
+
+            # 检查等级要求
+            if user.level >= tech.required_level:
+                # 检查前置科技要求
+                missing_techs = [req_id for req_id in tech.required_tech_ids if req_id not in user_tech_ids]
+
+                # 如果所有前置科技都已解锁，则自动解锁该科技
+                if not missing_techs:
+                    # 自动解锁科技
+                    success = tech_service.unlock_technology(user.user_id, tech.id)
+                    if success:
+                        unlocked_techs.append(tech)
+
+        return unlocked_techs
+
     async def register_command(self, event: AstrMessageEvent):
         """用户注册命令"""
         user_id = event.get_sender_id()

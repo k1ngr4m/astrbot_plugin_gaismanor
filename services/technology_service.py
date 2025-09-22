@@ -240,8 +240,7 @@ class TechnologyService:
 
         tech_info += "使用方法:\n"
         tech_info += "查看科技: /科技树\n"
-        tech_info += "解锁科技: /解锁科技 [科技名称]\n"
-        tech_info += "例如: /解锁科技 自动钓鱼\n"
+        tech_info += "当您达到科技的等级要求时，科技将自动解锁\n"
         yield event.plain_result(tech_info)
 
     async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str):
@@ -269,3 +268,45 @@ class TechnologyService:
             yield event.plain_result(f"🎉 成功解锁科技: {technology.display_name}！\n{technology.description}")
         else:
             yield event.plain_result("解锁科技失败")
+
+    def unlock_technology(self, user_id: str, tech_id: int) -> bool:
+        """解锁科技"""
+        # 检查是否已解锁
+        if self.is_technology_unlocked(user_id, tech_id):
+            return False
+
+        technology = self.get_technology_by_id(tech_id)
+        if not technology:
+            return False
+
+        user = self._get_user(user_id)
+        if not user:
+            return False
+
+        # 对于自动解锁的科技，不需要检查是否可以解锁
+        # 但为了兼容手动调用的情况，仍然保留检查逻辑
+        # 如果用户等级不足或金币不足，则不进行手动解锁
+        if user.level < technology.required_level:
+            return False
+
+        # 扣除金币（如果有要求）
+        if technology.required_gold > 0:
+            if user.gold < technology.required_gold:
+                return False
+            self.db.execute_query(
+                "UPDATE users SET gold = gold - ? WHERE user_id = ?",
+                (technology.required_gold, user_id)
+            )
+
+        # 记录解锁时间
+        self.db.execute_query(
+            """INSERT INTO user_technologies
+               (user_id, tech_id, unlocked_at)
+               VALUES (?, ?, ?)""",
+            (user_id, tech_id, int(time.time()))
+        )
+
+        # 应用科技效果
+        self._apply_technology_effect(user_id, technology)
+
+        return True

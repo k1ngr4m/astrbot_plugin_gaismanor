@@ -32,7 +32,7 @@ class OtherService:
 
         # 检查用户是否已解锁自动钓鱼科技
         if not self.technology_service.is_auto_fishing_unlocked(user_id):
-            yield event.plain_result("您尚未解锁自动钓鱼功能！请先使用 /科技树 命令查看可解锁的科技，并使用 /解锁科技 自动钓鱼 来解锁此功能。")
+            yield event.plain_result("您尚未解锁自动钓鱼功能！当您达到5级时将自动解锁此功能。")
             return
 
         # 切换自动钓鱼状态

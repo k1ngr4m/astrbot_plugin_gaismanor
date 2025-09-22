@@ -406,6 +406,21 @@ class DatabaseManager:
             )
         ''')
 
+        # 商店饰品模板表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shop_accessory_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                accessory_template_id INTEGER NOT NULL,
+                cost INTEGER,
+                stock INTEGER DEFAULT 0,  -- 0表示无限库存
+                enabled BOOLEAN DEFAULT TRUE,  -- 是否上架
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (accessory_template_id) REFERENCES accessory_templates (id),
+                UNIQUE(accessory_template_id)
+            )
+        ''')
+
         conn.commit()
         conn.close()
 
@@ -486,6 +501,10 @@ class DatabaseManager:
 
     def _init_base_data(self):
         """初始化基础数据"""
+        fish_count = self.fetch_one("SELECT COUNT(*) as count FROM fish_templates")
+        if fish_count and fish_count['count'] > 0:
+            # 如果已有数据就返回
+            return
         # 插入鱼类数据
         for fish in FISH_DATA:
             self.execute_query(
