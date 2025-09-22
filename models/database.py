@@ -347,6 +347,35 @@ class DatabaseManager:
             )
         ''')
 
+        # 科技树表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS technologies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                required_level INTEGER NOT NULL DEFAULT 1,
+                required_gold INTEGER NOT NULL DEFAULT 0,
+                required_tech_ids TEXT,  -- JSON格式存储前置科技ID列表
+                effect_type TEXT NOT NULL,
+                effect_value INTEGER NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        ''')
+
+        # 用户科技表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_technologies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                tech_id INTEGER NOT NULL,
+                unlocked_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (user_id),
+                FOREIGN KEY (tech_id) REFERENCES technologies (id),
+                UNIQUE(user_id, tech_id)
+            )
+        ''')
+
         # 商店鱼竿模板表
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS shop_rod_templates (
@@ -421,6 +450,39 @@ class DatabaseManager:
                     (title[0], title[1], title[2])
                 )
 
+    def _init_technology_data(self):
+        """初始化科技树数据"""
+        import json
+        current_time = int(time.time())
+
+        # 检查是否已有科技数据
+        tech_count = self.fetch_one("SELECT COUNT(*) as count FROM technologies")
+        if tech_count and tech_count['count'] > 0:
+            return
+
+        # 科技树数据
+        TECHNOLOGY_DATA = [
+            # 自动钓鱼科技
+            (1, "auto_fishing", "达到5级后可解锁自动钓鱼功能", 5, 1000, "[]", "auto_fishing", 1, "自动钓鱼", current_time),
+            # 鱼塘扩容科技
+            (2, "鱼塘扩容I", "将鱼塘容量从50提升到100", 10, 2000, "[1]", "fish_pond_capacity", 50, "鱼塘扩容I", current_time),
+            # 钓鱼成功率提升科技
+            (3, "钓鱼技巧I", "提升钓鱼成功率5%", 15, 3000, "[1]", "fishing_success_rate", 5, "钓鱼技巧I", current_time),
+            # 鱼塘扩容科技II
+            (4, "鱼塘扩容II", "将鱼塘容量从100提升到200", 20, 5000, "[2]", "fish_pond_capacity", 100, "鱼塘扩容II", current_time),
+            # 钓鱼成功率提升科技II
+            (5, "钓鱼技巧II", "提升钓鱼成功率10%", 25, 8000, "[3]", "fishing_success_rate", 10, "钓鱼技巧II", current_time),
+        ]
+
+        # 插入科技数据
+        for tech in TECHNOLOGY_DATA:
+            self.execute_query(
+                """INSERT INTO technologies
+                   (id, name, description, required_level, required_gold, required_tech_ids, effect_type, effect_value, display_name, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                tech
+            )
+
     def _init_base_data(self):
         """初始化基础数据"""
         # 检查是否已有数据（检查鱼类数据作为代表）
@@ -428,6 +490,7 @@ class DatabaseManager:
         if fish_count and fish_count['count'] > 0:
             # 如果已有数据，只插入成就和称号数据（如果不存在）
             self._init_achievements_and_titles()
+            self._init_technology_data()
             return
 
         # 插入鱼类数据

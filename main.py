@@ -13,6 +13,7 @@ from .services.other_service import OtherService
 from .services.fishing_service import FishingService
 from .services.equipment_service import EquipmentService
 from .services.achievement_service import AchievementService
+from .services.technology_service import TechnologyService
 import threading
 import time
 import os
@@ -34,6 +35,7 @@ class GaismanorPlugin(Star):
         self.fishing_service = FishingService(self.db_manager)
         self.equipment_service = EquipmentService(self.db_manager)
         self.achievement_service = AchievementService(self.db_manager)
+        self.technology_service = TechnologyService(self.db_manager)
 
         # 获取配置
         self.secret_key = config.get("secret_key", "SecretKey")
@@ -263,4 +265,15 @@ class GaismanorPlugin(Star):
     @filter.command("擦弹记录")
     async def wipe_bomb_log_command(self, event: AstrMessageEvent):
         async for result in self.other_service.wipe_bomb_log_command(event):
+            yield result
+
+    # 科技树相关命令
+    @filter.command("科技树")
+    async def tech_tree_command(self, event: AstrMessageEvent):
+        async for result in self.technology_service.tech_tree_command(event):
+            yield result
+
+    @filter.command("解锁科技")
+    async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str):
+        async for result in self.technology_service.unlock_tech_command(event, tech_name):
             yield result

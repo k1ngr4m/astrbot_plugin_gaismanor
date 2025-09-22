@@ -5,6 +5,7 @@ from ..models.fishing import FishTemplate
 from ..models.database import DatabaseManager
 from .fishing_service import FishingService
 from .achievement_service import AchievementService
+from .technology_service import TechnologyService
 import time
 import threading
 from datetime import datetime
@@ -14,6 +15,7 @@ class OtherService:
         self.db = db_manager
         self.fishing_service = FishingService(db_manager)
         self.achievement_service = AchievementService(db_manager)
+        self.technology_service = TechnologyService(db_manager)
         # 启动自动钓鱼检查线程
         self.auto_fishing_thread = threading.Thread(target=self._auto_fishing_loop, daemon=True)
         self.auto_fishing_thread.start()
@@ -26,6 +28,11 @@ class OtherService:
         user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 检查用户是否已解锁自动钓鱼科技
+        if not self.technology_service.is_auto_fishing_unlocked(user_id):
+            yield event.plain_result("您尚未解锁自动钓鱼功能！请先使用 /科技树 命令查看可解锁的科技，并使用 /解锁科技 自动钓鱼 来解锁此功能。")
             return
 
         # 切换自动钓鱼状态

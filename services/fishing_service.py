@@ -117,7 +117,7 @@ class FishingService:
 
         # 检查是否装备了鱼竿
         if not equipped_rod:
-            return FishingResult(success=False, message="请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /装备鱼竿 <ID> 来装备鱼竿。")
+            return FishingResult(success=False, message="请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /使用鱼竿 <ID> 来装备鱼竿。")
 
         # 获取用户装备的饰品
         equipped_accessory = self._get_equipped_accessory(user.user_id)
