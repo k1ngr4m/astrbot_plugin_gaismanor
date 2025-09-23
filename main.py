@@ -150,6 +150,11 @@ class GaismanorPlugin(Star):
         async for result in self.shop_service.shop_bait_command(event):
             yield result
 
+    @filter.command("商店饰品")
+    async def shop_accessory_command(self, event: AstrMessageEvent):
+        async for result in self.shop_service.shop_accessory_command(event):
+            yield result
+
     @filter.command("购买鱼饵")
     async def buy_bait_command(self, event: AstrMessageEvent, bait_id: int, quantity: int = 1):
         async for result in self.shop_service.buy_bait_command(event, bait_id, quantity):

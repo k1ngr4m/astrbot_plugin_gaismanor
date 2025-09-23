@@ -238,50 +238,36 @@ class FishingService:
         if equipped_rod and equipped_rod.name == "长者之竿":
             exp_gained = int(exp_gained * 1.05)  # 增加5%经验
 
-        user.exp += exp_gained
+        # 使用UserService的handle_user_exp_gain函数处理经验值增加
+        from ..services.user_service import UserService
+        user_service = UserService(self.db)
+        exp_result = user_service.handle_user_exp_gain(user, exp_gained)
 
-        # 检查是否升级
-        old_level = user.level
-        new_level = self._calculate_level(user.exp)
+        # 提取处理结果
+        leveled_up = exp_result['leveled_up']
+        old_level = exp_result['old_level']
+        new_level = exp_result['new_level']
+        level_up_reward = exp_result['level_up_reward']
+        unlocked_techs = exp_result['unlocked_techs']
+        newly_achievements = exp_result['newly_achievements']
 
-        # 如果升级了，给予金币奖励
-        level_up_reward = 0
-        if new_level > old_level:
-            # 从用户服务导入奖励计算函数
-            from ..services.user_service import UserService
-            user_service = UserService(self.db)
-            for level in range(old_level + 1, new_level + 1):
-                level_up_reward += user_service._get_level_up_reward(level)
-            user.gold += level_up_reward
+        # 如果升级了，添加升级信息
+        level_up_message = ""
+        if leveled_up:
+            if level_up_reward > 0:
+                level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！获得金币奖励: {level_up_reward}"
+            else:
+                if new_level >= 100:
+                    level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！您已达到最高等级！"
+                else:
+                    level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！"
 
-        user.level = new_level
-
-        # 检查并自动解锁科技
-        if new_level > old_level:
-            from ..services.user_service import UserService
-            user_service = UserService(self.db)
-            unlocked_techs = user_service.check_and_unlock_technologies(user)
-
-            # 如果有新解锁的科技，添加到返回消息中
+            # 如果有新解锁的科技，添加到升级信息中
             if unlocked_techs:
                 tech_messages = []
                 for tech in unlocked_techs:
                     tech_messages.append(f"🎉 成功解锁科技: {tech.display_name}！\n{tech.description}")
                 tech_unlock_message = "\n\n".join(tech_messages)
-
-        # 如果升级了，添加升级信息
-        level_up_message = ""
-        if user.level > old_level:
-            if level_up_reward > 0:
-                level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！获得金币奖励: {level_up_reward}"
-            else:
-                if user.level >= 100:
-                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！您已达到最高等级！"
-                else:
-                    level_up_message = f"\n🎉 恭喜升级到 {user.level} 级！"
-
-            # 如果有新解锁的科技，添加到升级信息中
-            if 'tech_unlock_message' in locals():
                 level_up_message += f"\n\n{tech_unlock_message}"
 
         # 记录钓鱼日志

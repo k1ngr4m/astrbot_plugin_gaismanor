@@ -1,15 +1,25 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any, AsyncGenerator
 import json
 import time
+from functools import lru_cache
 
 from astrbot.api.event import AstrMessageEvent
+from astrbot.core.message.message_event_result import MessageEventResult
 from ..models.user import User
 from ..models.tech import Technology, UserTechnology
 from ..models.database import DatabaseManager
 
+
 class TechnologyService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self._tech_cache: Dict[int, Technology] = {}  # 缓存科技数据，减少数据库查询
+
+    def _load_tech_to_cache(self) -> None:
+        """加载所有科技到缓存"""
+        if not self._tech_cache:
+            technologies = self.get_all_technologies()
+            self._tech_cache = {tech.id: tech for tech in technologies}
 
     def get_all_technologies(self) -> List[Technology]:
         """获取所有科技"""
@@ -47,12 +57,18 @@ class TechnologyService:
 
     def get_technology_by_id(self, tech_id: int) -> Optional[Technology]:
         """根据ID获取科技"""
+        # 先检查缓存
+        self._load_tech_to_cache()
+        if tech_id in self._tech_cache:
+            return self._tech_cache[tech_id]
+
+        # 缓存未命中则查询数据库
         result = self.db.fetch_one(
             "SELECT * FROM technologies WHERE id = ?",
             (tech_id,)
         )
         if result:
-            return Technology(
+            tech = Technology(
                 id=result['id'],
                 name=result['name'],
                 description=result['description'],
@@ -63,16 +79,25 @@ class TechnologyService:
                 effect_value=result['effect_value'],
                 display_name=result['display_name']
             )
+            self._tech_cache[tech_id] = tech  # 更新缓存
+            return tech
         return None
 
     def get_technology_by_name(self, name: str) -> Optional[Technology]:
         """根据名称获取科技"""
+        # 先检查缓存
+        self._load_tech_to_cache()
+        for tech in self._tech_cache.values():
+            if tech.name == name:
+                return tech
+
+        # 缓存未命中则查询数据库
         result = self.db.fetch_one(
             "SELECT * FROM technologies WHERE name = ?",
             (name,)
         )
         if result:
-            return Technology(
+            tech = Technology(
                 id=result['id'],
                 name=result['name'],
                 description=result['description'],
@@ -83,6 +108,8 @@ class TechnologyService:
                 effect_value=result['effect_value'],
                 display_name=result['display_name']
             )
+            self._tech_cache[tech.id] = tech  # 更新缓存
+            return tech
         return None
 
     def is_technology_unlocked(self, user_id: str, tech_id: int) -> bool:
@@ -93,18 +120,32 @@ class TechnologyService:
         )
         return result is not None
 
+    def get_user_unlocked_tech_ids(self, user_id: str) -> set[int]:
+        """获取用户已解锁科技的ID集合"""
+        results = self.db.fetch_all(
+            "SELECT tech_id FROM user_technologies WHERE user_id = ?",
+            (user_id,)
+        )
+        return {row['tech_id'] for row in results}
+
     def is_auto_fishing_unlocked(self, user_id: str) -> bool:
         """检查用户是否已解锁自动钓鱼功能"""
         result = self.db.fetch_one(
-            """SELECT ut.id FROM user_technologies ut
-               JOIN technologies t ON ut.tech_id = t.id
-               WHERE ut.user_id = ? AND t.name = '自动钓鱼'""",
+            """SELECT ut.id
+               FROM user_technologies ut
+                        JOIN technologies t ON ut.tech_id = t.id
+               WHERE ut.user_id = ?
+                 AND t.name = '自动钓鱼'""",
             (user_id,)
         )
         return result is not None
 
-    def can_unlock_technology(self, user: User, technology: Technology) -> tuple[bool, str]:
+    def can_unlock_technology(self, user: User, technology: Technology) -> Tuple[bool, str]:
         """检查用户是否可以解锁指定科技"""
+        # 检查是否已解锁
+        if self.is_technology_unlocked(user.user_id, technology.id):
+            return False, "您已经解锁了此科技"
+
         # 检查等级要求
         if user.level < technology.required_level:
             return False, f"需要达到{technology.required_level}级才能解锁此科技"
@@ -114,8 +155,9 @@ class TechnologyService:
             return False, f"金币不足，需要{technology.required_gold}金币"
 
         # 检查前置科技要求
-        user_tech_ids = [ut.tech_id for ut in self.get_user_technologies(user.user_id)]
+        user_tech_ids = self.get_user_unlocked_tech_ids(user.user_id)
         missing_techs = []
+
         for req_tech_id in technology.required_tech_ids:
             if req_tech_id not in user_tech_ids:
                 req_tech = self.get_technology_by_id(req_tech_id)
@@ -125,41 +167,52 @@ class TechnologyService:
         if missing_techs:
             return False, f"需要先解锁以下科技: {', '.join(missing_techs)}"
 
-        # 检查是否已解锁
-        if self.is_technology_unlocked(user.user_id, technology.id):
-            return False, "您已经解锁了此科技"
-
         return True, "可以解锁"
 
-    def unlock_technology(self, user_id: str, tech_id: int) -> bool:
-        """解锁科技"""
+    def unlock_technology(self, user_id: str, tech_id: int, skip_checks: bool = False) -> bool:
+        """
+        解锁科技
+
+        :param user_id: 用户ID
+        :param tech_id: 科技ID
+        :param skip_checks: 是否跳过解锁条件检查（用于自动解锁场景）
+        :return: 是否解锁成功
+        """
         # 检查是否已解锁
         if self.is_technology_unlocked(user_id, tech_id):
             return False
 
+        # 获取科技信息
         technology = self.get_technology_by_id(tech_id)
         if not technology:
             return False
 
+        # 获取用户信息
         user = self._get_user(user_id)
         if not user:
             return False
 
-        # 检查是否可以解锁
-        can_unlock, _ = self.can_unlock_technology(user, technology)
-        if not can_unlock:
-            return False
+        # 检查解锁条件（除非明确跳过）
+        if not skip_checks:
+            can_unlock, _ = self.can_unlock_technology(user, technology)
+            if not can_unlock:
+                return False
 
-        # 扣除金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (technology.required_gold, user_id)
-        )
+        # 扣除金币（如果有要求且不是自动解锁）
+        if technology.required_gold > 0 and not skip_checks:
+            if user.gold < technology.required_gold:
+                return False
+
+            # 原子操作更新金币，避免并发问题
+            self.db.execute_query(
+                "UPDATE users SET gold = gold - ? WHERE user_id = ? AND gold >= ?",
+                (technology.required_gold, user_id, technology.required_gold)
+            )
 
         # 记录解锁时间
         self.db.execute_query(
             """INSERT INTO user_technologies
-               (user_id, tech_id, unlocked_at)
+                   (user_id, tech_id, unlocked_at)
                VALUES (?, ?, ?)""",
             (user_id, tech_id, int(time.time()))
         )
@@ -169,7 +222,7 @@ class TechnologyService:
 
         return True
 
-    def _apply_technology_effect(self, user_id: str, technology: Technology):
+    def _apply_technology_effect(self, user_id: str, technology: Technology) -> None:
         """应用科技效果"""
         if technology.effect_type == "auto_fishing":
             self.db.execute_query(
@@ -181,14 +234,8 @@ class TechnologyService:
                 "UPDATE users SET fish_pond_capacity = fish_pond_capacity + ? WHERE user_id = ?",
                 (technology.effect_value, user_id)
             )
-        elif technology.effect_type == "unlock_rod":
-            # 对于解锁鱼竿类型的科技，我们不需要特殊处理
-            # 鱼竿解锁通过商店界面和购买逻辑来控制
-            pass
-        elif technology.effect_type == "unlock_bait":
-            # 对于解锁鱼饵类型的科技，我们不需要特殊处理
-            # 鱼饵解锁通过商店界面和购买逻辑来控制
-            pass
+        # 其他科技效果可以在这里扩展
+        # 如解锁鱼竿、鱼饵等类型的科技不需要特殊处理
 
     def _get_user(self, user_id: str) -> Optional[User]:
         """获取用户信息"""
@@ -217,8 +264,8 @@ class TechnologyService:
             )
         return None
 
-    async def tech_tree_command(self, event: AstrMessageEvent):
-        """科技树命令"""
+    async def tech_tree_command(self, event: AstrMessageEvent) -> AsyncGenerator[MessageEventResult, Any]:
+        """科技树命令：展示所有科技及其解锁状态"""
         user_id = event.get_sender_id()
         user = self._get_user(user_id)
 
@@ -226,14 +273,18 @@ class TechnologyService:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
+        # 获取所有科技和用户已解锁科技
         technologies = self.get_all_technologies()
-        user_tech_ids = [ut.tech_id for ut in self.get_user_technologies(user_id)]
+        user_tech_ids = self.get_user_unlocked_tech_ids(user_id)
 
+        # 构建科技树信息
         tech_info = "=== 科技树 ===\n\n"
         for tech in technologies:
             status = "✅ 已解锁" if tech.id in user_tech_ids else "🔒 未解锁"
             req_level = f"等级要求: {tech.required_level}级"
             req_gold = f"金币消耗: {tech.required_gold}"
+
+            # 处理前置科技
             req_techs = []
             for req_id in tech.required_tech_ids:
                 req_tech = self.get_technology_by_id(req_id)
@@ -246,13 +297,16 @@ class TechnologyService:
             tech_info += f"  {tech.description}\n"
             tech_info += f"  {req_level} | {req_gold} | {req_techs_str}\n\n"
 
+        # 添加使用说明
         tech_info += "使用方法:\n"
         tech_info += "查看科技: /科技树\n"
-        tech_info += "当您达到科技的等级要求时，使用 /解锁科技 科技名称 解锁科技\n"
+        tech_info += "解锁科技: /解锁科技 科技名称\n"
+
         yield event.plain_result(tech_info)
 
-    async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str):
-        """解锁科技命令"""
+    async def unlock_tech_command(self, event: AstrMessageEvent, tech_name: str) -> AsyncGenerator[
+        MessageEventResult, Any]:
+        """解锁科技命令：处理用户的科技解锁请求"""
         user_id = event.get_sender_id()
         user = self._get_user(user_id)
 
@@ -260,6 +314,7 @@ class TechnologyService:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
+        # 查找科技
         technology = self.get_technology_by_name(tech_name)
         if not technology:
             yield event.plain_result("未找到指定的科技")
@@ -275,46 +330,4 @@ class TechnologyService:
         if self.unlock_technology(user_id, technology.id):
             yield event.plain_result(f"🎉 成功解锁科技: {technology.display_name}！\n{technology.description}")
         else:
-            yield event.plain_result("解锁科技失败")
-
-    def unlock_technology(self, user_id: str, tech_id: int) -> bool:
-        """解锁科技"""
-        # 检查是否已解锁
-        if self.is_technology_unlocked(user_id, tech_id):
-            return False
-
-        technology = self.get_technology_by_id(tech_id)
-        if not technology:
-            return False
-
-        user = self._get_user(user_id)
-        if not user:
-            return False
-
-        # 对于自动解锁的科技，不需要检查是否可以解锁
-        # 但为了兼容手动调用的情况，仍然保留检查逻辑
-        # 如果用户等级不足或金币不足，则不进行手动解锁
-        if user.level < technology.required_level:
-            return False
-
-        # 扣除金币（如果有要求）
-        if technology.required_gold > 0:
-            if user.gold < technology.required_gold:
-                return False
-            self.db.execute_query(
-                "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-                (technology.required_gold, user_id)
-            )
-
-        # 记录解锁时间
-        self.db.execute_query(
-            """INSERT INTO user_technologies
-               (user_id, tech_id, unlocked_at)
-               VALUES (?, ?, ?)""",
-            (user_id, tech_id, int(time.time()))
-        )
-
-        # 应用科技效果
-        self._apply_technology_effect(user_id, technology)
-
-        return True
+            yield event.plain_result("解锁科技失败，请稍后再试")
