@@ -1,18 +1,37 @@
 from enum import Enum
 
-from data.plugins.astrbot_plugin_gaismanor.enums.constants import Constants
 
 
 class Messages(Enum):
-    # 通用消息
+    # 通用
     NOT_REGISTERED = "您还未注册，请先使用 /注册 命令注册账号"
-    REGISTRATION_SUCCESS = f"注册成功！欢迎来到大Gai庄园！\n您获得了新手礼包：{Constants.STARTING_GOLD}金币和基础鱼竿"
     ALREADY_REGISTERED = "您已经注册过了！"
+    REGISTRATION_SUCCESS = "注册成功！欢迎来到大Gai庄园！"
+    BALANCE_INFO = "当前金币余额"
 
-    # 签到消息
+    # 签到
     ALREADY_SIGNED_IN = "您今天已经签到过了！"
     SIGN_IN_SUCCESS = "签到成功！"
-    SIGN_IN_STREAK = "连续签到奖励！"
+    SIGN_IN_GOLD = "获得金币"
+    SIGN_IN_EXP = "获得经验"
+    SIGN_IN_STREAK = "连续签到"
+
+    # 等级相关
+    LEVEL_INFO_HEADER = "📊 等级信息"
+    LEVEL_CURRENT = "当前等级"
+    LEVEL_EXP = "当前经验"
+    LEVEL_PROGRESS = "升级进度"
+    LEVEL_NEEDED = "距离升级还需"
+    LEVEL_NEXT_REWARD = "下一等级奖励"
+    LEVEL_MAX = "恭喜您已达到最高等级！"
+    LEVEL_MAX_PRIVILEGE = "您已解锁所有等级特权！"
+
+    # 升级/科技/成就
+    LEVEL_UP_CONGRATS = "🎉 恭喜升级到"
+    LEVEL_UP_REWARD = "获得金币奖励"
+    LEVEL_UP_MAX = "您已达到最高等级！"
+    TECH_UNLOCK = "🎉 成功解锁科技"
+    ACHIEVEMENT_UNLOCK = "🎉 恭喜解锁新成就！"
 
     # 钓鱼消息
     COOLDOWN_NOT_EXPIRED = "钓鱼冷却中，请稍后再试"
@@ -185,6 +204,3 @@ class Messages(Enum):
     # 擦弹记录消息
     WIPE_BOMB_LOG_NO_DATA = "暂无擦弹记录！"
     WIPE_BOMB_LOG = "=== 擦弹记录 ==="
-
-    # 余额消息
-    BALANCE_INFO = "您的金币余额"
