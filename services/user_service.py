@@ -7,6 +7,9 @@ from astrbot.api.event import AstrMessageEvent
 from .achievement_service import AchievementService
 from .technology_service import TechnologyService
 from ..services.equipment_service import EquipmentService
+from ..dao.user_dao import UserDAO
+from ..utils.exp_utils import (calculate_level, get_exp_for_level, precompute_level_rewards,
+                              get_level_up_reward, check_and_unlock_technologies)
 
 # 常量定义
 MAX_LEVEL = 100
@@ -22,75 +25,26 @@ class UserService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self.achievement_service = AchievementService(db_manager)
+        self.user_dao = UserDAO(db_manager)
 
         # 预计算等级奖励，避免重复计算
         self._level_rewards = self._precompute_level_rewards()
 
     def _precompute_level_rewards(self) -> List[int]:
         """预计算各级别升级奖励"""
-        rewards = [0] * (MAX_LEVEL + 2)  # 索引从0到101
-
-        # 1-10级
-        for level in range(1, 11):
-            rewards[level] = 50
-
-        # 11-20级
-        for level in range(11, 21):
-            rewards[level] = 100
-
-        # 21-30级
-        for level in range(21, 31):
-            rewards[level] = 200
-
-        # 31-40级
-        for level in range(31, 41):
-            rewards[level] = 400
-
-        # 41-50级
-        for level in range(41, 51):
-            rewards[level] = 800
-
-        # 51-60级
-        for level in range(51, 61):
-            rewards[level] = 1600
-
-        # 61-70级
-        for level in range(61, 71):
-            rewards[level] = 3200
-
-        # 71-80级
-        for level in range(71, 81):
-            rewards[level] = 6400
-
-        # 81-90级
-        for level in range(81, 91):
-            rewards[level] = 12800
-
-        # 91-100级
-        for level in range(91, 101):
-            rewards[level] = 25600
-
-        return rewards
+        return precompute_level_rewards()
 
     def _calculate_level(self, exp: int) -> int:
         """根据经验计算等级"""
-        if exp <= 0:
-            return 1
-
-        # 每级所需经验 = 100 * 等级^2
-        level = int(math.sqrt(exp / BASE_EXP_PER_LEVEL)) + 1
-        return min(level, MAX_LEVEL)
+        return calculate_level(exp)
 
     def _get_exp_for_level(self, level: int) -> int:
         """获取升级到指定等级所需的总经验"""
-        capped_level = max(1, min(level, MAX_LEVEL))
-        return BASE_EXP_PER_LEVEL * (capped_level ** 2)
+        return get_exp_for_level(level)
 
     def _get_level_up_reward(self, level: int) -> int:
         """根据等级获取升级奖励金币"""
-        if 1 <= level <= MAX_LEVEL:
-            return self._level_rewards[level]
-        return 0
+        return get_level_up_reward(level, self._level_rewards)
 
     def check_and_unlock_technologies(self, user: User) -> List:
         """检查并自动解锁符合条件的科技"""
@@ -100,22 +54,17 @@ class UserService:
         all_technologies = tech_service.get_all_technologies()
         user_tech_ids = {ut.tech_id for ut in tech_service.get_user_technologies(user.user_id)}
 
-        unlocked_techs = []
+        # 使用共享函数检查并解锁科技
+        unlocked_techs = check_and_unlock_technologies(user, all_technologies, user_tech_ids)
 
-        # 检查每个科技是否满足解锁条件
-        for tech in all_technologies:
-            if tech.id in user_tech_ids:
-                continue  # 已解锁，跳过
+        # 自动解锁符合条件的科技
+        result_techs = []
+        for tech in unlocked_techs:
+            # 自动解锁科技
+            if tech_service.unlock_technology(user.user_id, tech.id):
+                result_techs.append(tech)
 
-            # 检查等级要求和前置科技
-            if (user.level >= tech.required_level and
-                    all(req_id in user_tech_ids for req_id in tech.required_tech_ids)):
-
-                # 自动解锁科技
-                if tech_service.unlock_technology(user.user_id, tech.id):
-                    unlocked_techs.append(tech)
-
-        return unlocked_techs
+        return result_techs
 
     async def register_command(self, event: AstrMessageEvent):
         """用户注册命令"""
@@ -157,8 +106,9 @@ class UserService:
             return
 
         # 获取当前日期和昨天日期
-        today = time.strftime('%Y-%m-%d', time.localtime())
-        yesterday = time.strftime('%Y-%m-%d', time.localtime(time.time() - 86400))
+        from ..utils.sign_in_utils import get_current_date, get_yesterday_date
+        today = get_current_date()
+        yesterday = get_yesterday_date()
 
         # 检查今日是否已签到
         existing_record = self.db.fetch_one(
@@ -178,8 +128,8 @@ class UserService:
         streak = yesterday_record['streak'] + 1 if yesterday_record else 1
 
         # 计算奖励
-        reward_gold = SIGN_IN_BASE_GOLD + (streak - 1) * SIGN_IN_STREAK_GOLD_INCREMENT
-        reward_exp = SIGN_IN_BASE_EXP + (streak - 1) * SIGN_IN_STREAK_EXP_INCREMENT
+        from ..utils.sign_in_utils import calculate_sign_in_rewards
+        reward_gold, reward_exp = calculate_sign_in_rewards(streak)
 
         # 更新用户金币
         user.gold += reward_gold
@@ -284,30 +234,7 @@ class UserService:
 
     def get_user(self, user_id: str) -> Optional[User]:
         """获取用户信息"""
-        result = self.db.fetch_one(
-            "SELECT * FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-        if result:
-            return User(
-                user_id=result['user_id'],
-                platform=result['platform'],
-                nickname=result['nickname'],
-                gold=result['gold'],
-                exp=result['exp'],
-                level=result['level'],
-                fishing_count=result['fishing_count'],
-                total_fish_weight=result['total_fish_weight'],
-                total_income=result['total_income'],
-                last_fishing_time=result['last_fishing_time'],
-                auto_fishing=result['auto_fishing'],
-                total_fishing_count=result['total_fishing_count'],
-                total_coins_earned=result['total_coins_earned'],
-                fish_pond_capacity=result['fish_pond_capacity'],
-                created_at=result['created_at'],
-                updated_at=result['updated_at']
-            )
-        return None
+        return self.user_dao.get_user_by_id(user_id)
 
     def create_user(self, user_id: str, platform: str, nickname: str) -> User:
         """创建新用户"""
@@ -320,72 +247,26 @@ class UserService:
             updated_at=now
         )
 
-        self.db.execute_query(
-            """INSERT INTO users (user_id, platform, nickname, gold, exp, level, fishing_count,
-                                  total_fish_weight, total_income, last_fishing_time,
-                                  auto_fishing, total_fishing_count, total_coins_earned, fish_pond_capacity,
-                                  created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                user.user_id, user.platform, user.nickname, user.gold, user.exp, user.level,
-                user.fishing_count, user.total_fish_weight, user.total_income,
-                user.last_fishing_time, user.auto_fishing, user.total_fishing_count,
-                user.total_coins_earned, user.fish_pond_capacity, user.created_at, user.updated_at
-            )
-        )
+        self.user_dao.create_user(user)
         return user
 
     def update_user(self, user: User) -> None:
         """更新用户信息"""
-        user.updated_at = int(time.time())
-        self.db.execute_query(
-            """UPDATE users
-               SET platform=?,
-                   nickname=?,
-                   gold=?,
-                   exp=?,
-                   level=?,
-                   fishing_count=?,
-                   total_fish_weight=?,
-                   total_income=?,
-                   last_fishing_time=?,
-                   auto_fishing=?,
-                   total_fishing_count=?,
-                   total_coins_earned=?,
-                   fish_pond_capacity=?,
-                   updated_at=?
-               WHERE user_id = ?""",
-            (
-                user.platform, user.nickname, user.gold, user.exp, user.level, user.fishing_count,
-                user.total_fish_weight, user.total_income, user.last_fishing_time,
-                user.auto_fishing, user.total_fishing_count, user.total_coins_earned,
-                user.fish_pond_capacity, user.updated_at, user.user_id
-            )
-        )
+        self.user_dao.update_user(user)
 
     def add_gold(self, user_id: str, amount: int) -> bool:
         """增加用户金币"""
         if amount <= 0:
             return False
 
-        user = self.get_user(user_id)
-        if user:
-            user.gold += amount
-            self.update_user(user)
-            return True
-        return False
+        return self.user_dao.add_gold(user_id, amount)
 
     def deduct_gold(self, user_id: str, amount: int) -> bool:
         """扣除用户金币"""
         if amount <= 0:
             return False
 
-        user = self.get_user(user_id)
-        if user and user.gold >= amount:
-            user.gold -= amount
-            self.update_user(user)
-            return True
-        return False
+        return self.user_dao.deduct_gold(user_id, amount)
 
     def handle_user_exp_gain(self, user: User, exp_amount: int) -> dict:
         """

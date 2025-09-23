@@ -5,6 +5,8 @@ from ..models.user import User
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate
 from ..models.database import DatabaseManager
+from ..dao.shop_dao import ShopDAO
+from ..dao.user_dao import UserDAO
 import time
 
 class ShopService:

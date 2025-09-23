@@ -6,6 +6,10 @@ from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate, FishingResult
 from ..models.database import DatabaseManager
 from .achievement_service import AchievementService
+from ..dao.fishing_dao import FishingDAO
+from ..utils.fishing_utils import (calculate_exp_gain, select_fish_by_rarity,
+                                 calculate_fish_value_and_weight, calculate_catch_rate,
+                                 calculate_rod_durability_cost)
 import random
 import time
 
@@ -13,82 +17,23 @@ class FishingService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self.achievement_service = AchievementService(db_manager)
+        self.fishing_dao = FishingDAO(db_manager)
 
     def get_fish_templates(self) -> List[FishTemplate]:
         """获取所有鱼类模板"""
-        results = self.db.fetch_all("SELECT * FROM fish_templates")
-        return [
-            FishTemplate(
-                id=row['id'],
-                name=row['name'],
-                description=row['description'],
-                rarity=row['rarity'],
-                base_value=row['base_value'],
-                min_weight=row['min_weight'],
-                max_weight=row['max_weight'],
-                icon_url=row['icon_url']
-            ) for row in results
-        ]
+        return self.fishing_dao.get_fish_templates()
 
     def get_rod_templates(self) -> List[RodTemplate]:
         """获取所有鱼竿模板"""
-        results = self.db.fetch_all("SELECT * FROM rod_templates")
-        return [
-            RodTemplate(
-                id=row['id'],
-                name=row['name'],
-                description=row['description'],
-                rarity=row['rarity'],
-                source=row['source'],
-                purchase_cost=row['purchase_cost'],
-                quality_mod=row['quality_mod'],
-                quantity_mod=row['quantity_mod'],
-                rare_mod=row['rare_mod'],
-                durability=row['durability'],
-                icon_url=row['icon_url']
-            ) for row in results
-        ]
+        return self.fishing_dao.get_rod_templates()
 
     def get_accessory_templates(self) -> List[AccessoryTemplate]:
         """获取所有饰品模板"""
-        results = self.db.fetch_all("SELECT * FROM accessory_templates")
-        return [
-            AccessoryTemplate(
-                id=row['id'],
-                name=row['name'],
-                description=row['description'],
-                rarity=row['rarity'],
-                slot_type=row['slot_type'],
-                quality_mod=row['quality_mod'],
-                quantity_mod=row['quantity_mod'],
-                rare_mod=row['rare_mod'],
-                coin_mod=row['coin_mod'],
-                other_desc=row['other_desc'],
-                icon_url=row['icon_url']
-            ) for row in results
-        ]
+        return self.fishing_dao.get_accessory_templates()
 
     def get_bait_templates(self) -> List[BaitTemplate]:
         """获取所有鱼饵模板"""
-        results = self.db.fetch_all("SELECT * FROM bait_templates")
-        return [
-            BaitTemplate(
-                id=row['id'],
-                name=row['name'],
-                description=row['description'],
-                rarity=row['rarity'],
-                effect_description=row['effect_description'],
-                duration_minutes=row['duration_minutes'],
-                cost=row['cost'],
-                required_rod_rarity=row['required_rod_rarity'],
-                success_rate_modifier=row['success_rate_modifier'],
-                rare_chance_modifier=row['rare_chance_modifier'],
-                garbage_reduction_modifier=row['garbage_reduction_modifier'],
-                value_modifier=row['value_modifier'],
-                quantity_modifier=row['quantity_modifier'],
-                is_consumable=row['is_consumable']
-            ) for row in results
-        ]
+        return self.fishing_dao.get_bait_templates()
 
     def can_fish(self, user: User) -> Tuple[bool, str]:
         """检查用户是否可以钓鱼"""
@@ -139,7 +84,7 @@ class FishingService:
 
         # 随机决定是否钓到鱼 (基础成功率50%)
         base_catch_rate = 0.5
-        final_catch_rate = min(base_catch_rate * catch_rate_bonus, 0.95)  # 最高95%成功率
+        final_catch_rate = calculate_catch_rate(base_catch_rate, catch_rate_bonus)
 
         if random.random() > final_catch_rate:
             # 钓鱼失败
@@ -149,12 +94,13 @@ class FishingService:
             user.last_fishing_time = int(time.time())
 
             # 更新用户数据到数据库
-            self.db.execute_query(
-                """UPDATE users SET
-                    gold=?, fishing_count=?, last_fishing_time=?
-                    WHERE user_id=?""",
-                (user.gold, user.fishing_count, user.last_fishing_time, user.user_id)
-            )
+            from ..dao.user_dao import UserDAO
+            user_dao = UserDAO(self.db)
+            user_dao.update_user_fields(user.user_id, {
+                'gold': user.gold,
+                'fishing_count': user.fishing_count,
+                'last_fishing_time': user.last_fishing_time
+            })
 
             return FishingResult(success=False, message="这次没有钓到鱼，再试试看吧！")
 
@@ -183,29 +129,20 @@ class FishingService:
             return FishingResult(success=False, message="当前装备的鱼竿无法钓到任何鱼类，请使用更高级的鱼竿！")
 
         # 根据稀有度权重选择鱼类
-        # 稀有度越高，权重越低（越难钓到）
-        weights = [1.0 / (fish.rarity ** 2) for fish in fish_templates]
-        caught_fish = random.choices(fish_templates, weights=weights)[0]
+        caught_fish = select_fish_by_rarity(fish_templates)
 
         # 计算鱼的重量和价值
-        final_weight = random.uniform(caught_fish.min_weight / 1000.0, caught_fish.max_weight / 1000.0)
-        # 计算平均重量（公斤）
-        average_weight = ((caught_fish.min_weight + caught_fish.max_weight) / 2) / 1000.0
-        # 使用新的价值公式：价值 = 基础价值 × (1 + 重量 ÷ 平均重量)
-        final_value = int(caught_fish.base_value * (1 + final_weight / average_weight))
+        final_weight, final_value = calculate_fish_value_and_weight(caught_fish)
 
         # 消耗鱼竿耐久度（每次钓鱼消耗1-5点耐久度）
         if equipped_rod_instance:
             # 如果鱼竿有耐久度限制（不为None）且当前耐久度大于0
             if equipped_rod_instance['durability'] is not None and equipped_rod_instance['durability'] > 0:
-                durability_cost = random.randint(1, 5)
+                durability_cost = calculate_rod_durability_cost()
                 new_durability = max(0, equipped_rod_instance['durability'] - durability_cost)
 
                 # 更新鱼竿耐久度
-                self.db.execute_query(
-                    "UPDATE user_rod_instances SET durability = ? WHERE id = ?",
-                    (new_durability, equipped_rod_instance['id'])
-                )
+                self.fishing_dao.update_rod_durability(equipped_rod_instance['id'], new_durability)
 
                 # 如果鱼竿损坏，添加提示信息
                 if new_durability <= 0:
@@ -217,12 +154,7 @@ class FishingService:
                 message = ""
 
         # 添加到用户鱼类库存
-        self.db.execute_query(
-            """INSERT INTO user_fish_inventory
-               (user_id, fish_template_id, weight, value, caught_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (user.user_id, caught_fish.id, final_weight, final_value, int(time.time()))
-        )
+        self.fishing_dao.add_fish_to_inventory(user.user_id, caught_fish.id, final_weight, final_value)
 
         # 更新用户统计数据（不再直接增加金币）
         user.total_fish_weight += final_weight
@@ -271,21 +203,20 @@ class FishingService:
                 level_up_message += f"\n\n{tech_unlock_message}"
 
         # 记录钓鱼日志
-        self.db.execute_query(
-            """INSERT INTO fishing_logs
-               (user_id, fish_template_id, fish_weight, fish_value, success, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (user.user_id, caught_fish.id, final_weight, final_value, True, int(time.time()))
-        )
+        self.fishing_dao.add_fishing_log(user.user_id, caught_fish.id, final_weight, final_value, True)
 
         # 更新用户数据到数据库
-        self.db.execute_query(
-            """UPDATE users SET
-                gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?, exp=?, level=?
-                WHERE user_id=?""",
-            (user.gold, user.fishing_count, user.last_fishing_time,
-             user.total_fish_weight, user.total_income, user.exp, user.level, user.user_id)
-        )
+        from ..dao.user_dao import UserDAO
+        user_dao = UserDAO(self.db)
+        user_dao.update_user_fields(user.user_id, {
+            'gold': user.gold,
+            'fishing_count': user.fishing_count,
+            'last_fishing_time': user.last_fishing_time,
+            'total_fish_weight': user.total_fish_weight,
+            'total_income': user.total_income,
+            'exp': user.exp,
+            'level': user.level
+        })
 
         # 检查成就
         newly_unlocked = self.achievement_service.check_achievements(user)
@@ -307,22 +238,7 @@ class FishingService:
 
     def _calculate_exp_gain(self, fish: FishTemplate, weight: float, value: int, user_level: int = 1) -> int:
         """计算钓鱼获得的经验值"""
-        # 基础经验 = 鱼的稀有度 * 10 + 价值 / 10 + 重量 / 10
-        base_exp = fish.rarity * 10 + value // 10 + int(weight * 10)
-
-        # 等级加成：每级增加1%经验
-        level_bonus = 1 + (user_level - 1) * 0.01
-
-        # 获取用户装备的鱼竿，用于计算经验加成
-        user_id = None
-        # 由于在这个函数中无法直接获取user_id，我们需要在调用时传入
-        # 这里保持原逻辑不变，实际经验加成在fish方法中处理
-
-        # 计算最终经验
-        final_exp = int(base_exp * level_bonus)
-
-        # 最小经验值为1
-        return max(1, final_exp)
+        return calculate_exp_gain(fish, weight, value, user_level)
 
     def _calculate_level(self, exp: int) -> int:
         """根据经验计算等级"""
@@ -343,60 +259,15 @@ class FishingService:
 
     def _get_equipped_rod(self, user_id: str) -> Optional[RodTemplate]:
         """获取用户装备的鱼竿"""
-        result = self.db.fetch_one(
-            """SELECT rt.* FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
-            (user_id,)
-        )
-        if result:
-            return RodTemplate(
-                id=result['id'],
-                name=result['name'],
-                description=result['description'],
-                rarity=result['rarity'],
-                source=result['source'],
-                purchase_cost=result['purchase_cost'],
-                quality_mod=result['quality_mod'],
-                quantity_mod=result['quantity_mod'],
-                rare_mod=result['rare_mod'],
-                durability=result['durability'],
-                icon_url=result['icon_url']
-            )
-        return None
+        return self.fishing_dao.get_equipped_rod(user_id)
 
     def _get_equipped_rod_instance(self, user_id: str) -> Optional[dict]:
         """获取用户装备的鱼竿实例（包含耐久度等实例信息）"""
-        result = self.db.fetch_one(
-            """SELECT uri.* FROM user_rod_instances uri
-               WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
-            (user_id,)
-        )
-        return result
+        return self.fishing_dao.get_equipped_rod_instance(user_id)
 
     def _get_equipped_accessory(self, user_id: str) -> Optional[AccessoryTemplate]:
         """获取用户装备的饰品"""
-        result = self.db.fetch_one(
-            """SELECT at.* FROM user_accessory_instances uai
-               JOIN accessory_templates at ON uai.accessory_template_id = at.id
-               WHERE uai.user_id = ? AND uai.is_equipped = TRUE""",
-            (user_id,)
-        )
-        if result:
-            return AccessoryTemplate(
-                id=result['id'],
-                name=result['name'],
-                description=result['description'],
-                rarity=result['rarity'],
-                slot_type=result['slot_type'],
-                quality_mod=result['quality_mod'],
-                quantity_mod=result['quantity_mod'],
-                rare_mod=result['rare_mod'],
-                coin_mod=result['coin_mod'],
-                other_desc=result['other_desc'],
-                icon_url=result['icon_url']
-            )
-        return None
+        return self.fishing_dao.get_equipped_accessory(user_id)
 
     async def fish_command(self, event):
         """处理钓鱼命令"""

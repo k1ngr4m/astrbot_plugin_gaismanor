@@ -4,21 +4,22 @@ from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.equipment import Rod, Bait
 from ..models.database import DatabaseManager
+from ..dao.sell_dao import SellDAO
+from ..dao.user_dao import UserDAO
 import time
 
 class SellService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.sell_dao = SellDAO(db_manager)
+        self.user_dao = UserDAO(db_manager)
 
     async def sell_all_command(self, event: AstrMessageEvent):
         """全部卖出鱼类命令"""
         user_id = event.get_sender_id()
 
         # 获取用户鱼类库存
-        fish_inventory = self.db.fetch_all(
-            "SELECT * FROM user_fish_inventory WHERE user_id = ?",
-            (user_id,)
-        )
+        fish_inventory = self.sell_dao.get_user_fish_inventory(user_id)
 
         if not fish_inventory:
             yield event.plain_result("您的鱼塘是空的，没有鱼可以卖出！")
@@ -28,16 +29,10 @@ class SellService:
         total_value = sum(fish['value'] for fish in fish_inventory)
 
         # 删除所有鱼类并增加金币
-        self.db.execute_query(
-            "DELETE FROM user_fish_inventory WHERE user_id = ?",
-            (user_id,)
-        )
+        self.sell_dao.delete_all_user_fish(user_id)
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (total_value, user_id)
-        )
+        self.user_dao.add_gold(user_id, total_value)
 
         yield event.plain_result(f"成功卖出所有鱼类！\n获得金币: {total_value}枚")
 
@@ -51,13 +46,7 @@ class SellService:
             return
 
         # 获取指定稀有度的鱼类
-        fish_inventory = self.db.fetch_all(
-            """SELECT ufi.*, ft.name as fish_name
-               FROM user_fish_inventory ufi
-               JOIN fish_templates ft ON ufi.fish_template_id = ft.id
-               WHERE ufi.user_id = ? AND ft.rarity = ?""",
-            (user_id, rarity)
-        )
+        fish_inventory = self.sell_dao.get_user_fish_by_rarity(user_id, rarity)
 
         if not fish_inventory:
             yield event.plain_result(f"您的鱼塘中没有 {rarity} 星鱼类！")
@@ -67,18 +56,10 @@ class SellService:
         total_value = sum(fish['value'] for fish in fish_inventory)
 
         # 删除指定稀有度的鱼
-        fish_ids = [fish['id'] for fish in fish_inventory]
-        placeholders = ','.join('?' * len(fish_ids))
-        self.db.execute_query(
-            f"DELETE FROM user_fish_inventory WHERE id IN ({placeholders})",
-            fish_ids
-        )
+        self.sell_dao.delete_user_fish_by_rarity(user_id, rarity)
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (total_value, user_id)
-        )
+        self.user_dao.add_gold(user_id, total_value)
 
         yield event.plain_result(f"成功卖出所有 {rarity} 星鱼类！\n共卖出 {len(fish_inventory)} 条鱼\n获得金币: {total_value}枚")
 
@@ -87,15 +68,7 @@ class SellService:
         user_id = event.get_sender_id()
 
         # 检查鱼竿是否存在且属于用户
-        rod = self.db.fetch_one(
-            """SELECT uri.id, uri.user_id, uri.rod_template_id, uri.level, uri.exp,
-                      uri.is_equipped, uri.acquired_at, uri.durability,
-                      rt.name as rod_name, rt.rarity as rod_rarity
-               FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.id = ? AND uri.user_id = ?""",
-            (rod_id, user_id)
-        )
+        rod = self.sell_dao.get_user_rod_by_id(user_id, rod_id)
 
         if not rod:
             yield event.plain_result("找不到指定的鱼竿或该鱼竿不属于您！")
@@ -107,28 +80,23 @@ class SellService:
             return
 
         # 计算出售价格 (根据稀有度确定基础价格)
-        base_price = 100 * rod['rod_rarity']  # 1星100金币，2星200金币，以此类推
+        base_price = 100 * rod['rarity']  # 1星100金币，2星200金币，以此类推
         sell_price = max(10, base_price // 2)  # 最低10金币
 
         # 删除鱼竿
-        self.db.execute_query(
-            "DELETE FROM user_rod_instances WHERE id = ?",
-            (rod_id,)
-        )
+        self.sell_dao.delete_user_rod(user_id, rod_id)
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (sell_price, user_id)
-        )
+        self.user_dao.add_gold(user_id, sell_price)
 
-        yield event.plain_result(f"成功出售鱼竿 [{rod['rod_name']}]！\n获得金币: {sell_price}枚")
+        yield event.plain_result(f"成功出售鱼竿 [{rod['name']}]！\n获得金币: {sell_price}枚")
 
     async def sell_bait_command(self, event: AstrMessageEvent, bait_id: int):
         """出售鱼饵命令"""
         user_id = event.get_sender_id()
 
         # 检查鱼饵是否存在且属于用户
+        # 注意：这里需要直接查询数据库，因为SellDAO没有提供这个方法
         bait = self.db.fetch_one(
             """SELECT ubi.*, bt.name as bait_name, bt.rarity as bait_rarity
                FROM user_bait_inventory ubi
@@ -151,16 +119,10 @@ class SellService:
         sell_price = max(5, base_price // 2) * bait['quantity']  # 最低5金币每个
 
         # 删除鱼饵
-        self.db.execute_query(
-            "DELETE FROM user_bait_inventory WHERE id = ?",
-            (bait_id,)
-        )
+        self.sell_dao.delete_user_bait(user_id, bait['bait_template_id'], bait['quantity'])
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (sell_price, user_id)
-        )
+        self.user_dao.add_gold(user_id, sell_price)
 
         yield event.plain_result(f"成功出售鱼饵 [{bait['bait_name']}] x{bait['quantity']}！\n获得金币: {sell_price}枚")
 
@@ -169,6 +131,7 @@ class SellService:
         user_id = event.get_sender_id()
 
         # 获取用户所有非五星鱼竿（保留五星鱼竿）
+        # 注意：这里需要直接查询数据库，因为SellDAO没有提供这个方法
         rods = self.db.fetch_all(
             """SELECT uri.*, rt.name as rod_name, rt.rarity as rod_rarity
                FROM user_rod_instances uri
@@ -184,7 +147,6 @@ class SellService:
         # 计算总价值
         total_value = 0
         rod_names = []
-        rod_ids = []
 
         for rod in rods:
             # 计算出售价格 (根据稀有度确定基础价格)
@@ -193,20 +155,12 @@ class SellService:
 
             total_value += sell_price
             rod_names.append(rod['rod_name'])
-            rod_ids.append(rod['id'])
 
-        # 删除所有非五星且未装备的鱼竿
-        placeholders = ','.join('?' * len(rod_ids))
-        self.db.execute_query(
-            f"DELETE FROM user_rod_instances WHERE id IN ({placeholders})",
-            rod_ids
-        )
+            # 删除鱼竿
+            self.sell_dao.delete_user_rod(user_id, rod['id'])
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (total_value, user_id)
-        )
+        self.user_dao.add_gold(user_id, total_value)
 
         # 构造返回消息
         rod_list = "\n".join([f"  · {name}" for name in rod_names])

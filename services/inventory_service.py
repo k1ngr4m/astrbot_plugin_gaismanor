@@ -4,11 +4,15 @@ from astrbot.api.event import AstrMessageEvent
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate
 from ..models.database import DatabaseManager
+from ..dao.inventory_dao import InventoryDAO
+from ..dao.user_dao import UserDAO
 import time
 
 class InventoryService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.inventory_dao = InventoryDAO(db_manager)
+        self.user_dao = UserDAO(db_manager)
 
     async def fish_pond_command(self, event: AstrMessageEvent):
         """鱼塘命令"""
@@ -95,15 +99,16 @@ class InventoryService:
             return
 
         # 扣除金币并升级鱼塘
-        user.gold -= upgrade_cost
-        user.fish_pond_capacity += capacity_increase
+        if not self.user_dao.deduct_gold(user_id, upgrade_cost):
+            yield event.plain_result("扣除金币失败，请稍后重试！")
+            return
 
-        # 更新用户数据
-        from ..services.user_service import UserService
-        user_service = UserService(self.db)
-        user_service.update_user(user)
+        new_capacity = user.fish_pond_capacity + capacity_increase
+        if not self.inventory_dao.upgrade_user_fish_pond(user_id, new_capacity):
+            yield event.plain_result("升级鱼塘失败，请稍后重试！")
+            return
 
-        yield event.plain_result(f"鱼塘升级成功！\n消耗金币: {upgrade_cost}\n鱼塘容量增加: {capacity_increase}\n当前容量: {user.fish_pond_capacity}")
+        yield event.plain_result(f"鱼塘升级成功！\n消耗金币: {upgrade_cost}\n鱼塘容量增加: {capacity_increase}\n当前容量: {new_capacity}")
 
     async def bait_command(self, event: AstrMessageEvent):
         """鱼饵命令"""
@@ -183,10 +188,7 @@ class InventoryService:
 
     def get_user_fish_inventory(self, user_id: str) -> List[FishInventory]:
         """获取用户鱼类库存"""
-        results = self.db.fetch_all(
-            "SELECT * FROM user_fish_inventory WHERE user_id = ?",
-            (user_id,)
-        )
+        results = self.inventory_dao.get_user_fish_inventory(user_id)
         return [
             FishInventory(
                 id=row['id'],
@@ -200,12 +202,7 @@ class InventoryService:
 
     def get_user_rods(self, user_id: str) -> List[RodTemplate]:
         """获取用户鱼竿库存"""
-        results = self.db.fetch_all(
-            """SELECT rt.*, uri.level, uri.exp, uri.is_equipped, uri.acquired_at, uri.durability FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.user_id = ?""",
-            (user_id,)
-        )
+        results = self.inventory_dao.get_user_rods(user_id)
         return [
             RodTemplate(
                 id=row['id'],
@@ -228,12 +225,7 @@ class InventoryService:
 
     def get_user_accessories(self, user_id: str) -> List[AccessoryTemplate]:
         """获取用户饰品库存"""
-        results = self.db.fetch_all(
-            """SELECT at.*, uai.is_equipped, uai.acquired_at FROM user_accessory_instances uai
-               JOIN accessory_templates at ON uai.accessory_template_id = at.id
-               WHERE uai.user_id = ?""",
-            (user_id,)
-        )
+        results = self.inventory_dao.get_user_accessories(user_id)
         return [
             AccessoryTemplate(
                 id=row['id'],
@@ -254,12 +246,7 @@ class InventoryService:
 
     def get_user_bait(self, user_id: str) -> List[BaitTemplate]:
         """获取用户鱼饵库存"""
-        results = self.db.fetch_all(
-            """SELECT bt.*, ubi.quantity FROM user_bait_inventory ubi
-               JOIN bait_templates bt ON ubi.bait_template_id = bt.id
-               WHERE ubi.user_id = ?""",
-            (user_id,)
-        )
+        results = self.inventory_dao.get_user_bait(user_id)
         return [
             BaitTemplate(
                 id=row['id'],
@@ -282,12 +269,7 @@ class InventoryService:
 
     def get_equipped_rod(self, user_id: str) -> Optional[RodTemplate]:
         """获取用户装备的鱼竿"""
-        result = self.db.fetch_one(
-            """SELECT rt.*, uri.level, uri.exp, uri.is_equipped, uri.acquired_at, uri.durability FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
-            (user_id,)
-        )
+        result = self.inventory_dao.get_equipped_rod(user_id)
         if result:
             return RodTemplate(
                 id=result['id'],
@@ -310,13 +292,12 @@ class InventoryService:
 
     def get_equipped_accessory(self, user_id: str) -> Optional[AccessoryTemplate]:
         """获取用户装备的饰品"""
-        result = self.db.fetch_one(
-            """SELECT at.*, uai.is_equipped, uai.acquired_at FROM user_accessory_instances uai
-               JOIN accessory_templates at ON uai.accessory_template_id = at.id
-               WHERE uai.user_id = ? AND uai.is_equipped = TRUE""",
-            (user_id,)
-        )
-        if result:
+        # 先获取所有饰品，然后筛选已装备的
+        results = self.inventory_dao.get_user_accessories(user_id)
+        equipped_accessories = [row for row in results if row.get('is_equipped')]
+
+        if equipped_accessories:
+            result = equipped_accessories[0]
             return AccessoryTemplate(
                 id=result['id'],
                 name=result['name'],

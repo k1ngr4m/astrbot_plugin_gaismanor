@@ -3,6 +3,7 @@ from astrbot.api.event import AstrMessageEvent
 from ..models.user import User
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.database import DatabaseManager
+from ..dao.equipment_dao import EquipmentDAO
 import time
 import logging
 
@@ -11,15 +12,11 @@ logger = logging.getLogger(__name__)
 class EquipmentService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.equipment_dao = EquipmentDAO(db_manager)
 
     def get_user_rods(self, user_id: str) -> List[Rod]:
         """获取用户所有鱼竿"""
-        results = self.db.fetch_all(
-            """SELECT rt.*, uri.id as instance_id, uri.level, uri.exp, uri.is_equipped, uri.durability FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.user_id = ?""",
-            (user_id,)
-        )
+        results = self.equipment_dao.get_user_rods(user_id)
         return [
         Rod(
                 id=row['instance_id'],
@@ -38,12 +35,7 @@ class EquipmentService:
 
     def get_user_accessories(self, user_id: str) -> List[Accessory]:
         """获取用户所有饰品"""
-        results = self.db.fetch_all(
-            """SELECT at.*, uai.is_equipped FROM user_accessory_instances uai
-               JOIN accessory_templates at ON uai.accessory_template_id = at.id
-               WHERE uai.user_id = ?""",
-            (user_id,)
-        )
+        results = self.equipment_dao.get_user_accessories(user_id)
         return [
             Accessory(
                 id=row['id'],
@@ -61,12 +53,7 @@ class EquipmentService:
 
     def get_user_bait(self, user_id: str) -> List[Bait]:
         """获取用户所有鱼饵"""
-        results = self.db.fetch_all(
-            """SELECT bt.*, ubi.quantity FROM user_bait_inventory ubi
-               JOIN bait_templates bt ON ubi.bait_template_id = bt.id
-               WHERE ubi.user_id = ?""",
-            (user_id,)
-        )
+        results = self.equipment_dao.get_user_bait(user_id)
         return [
             Bait(
                 id=row['id'],
@@ -88,74 +75,23 @@ class EquipmentService:
 
     def equip_rod(self, user_id: str, rod_id: int) -> bool:
         """装备鱼竿"""
-        # 先取消当前装备的鱼竿
-        self.db.execute_query(
-            "UPDATE user_rod_instances SET is_equipped = FALSE WHERE user_id = ? AND is_equipped = TRUE",
-            (user_id,)
-        )
-
-        # 装备新的鱼竿
-        result = self.db.execute_query(
-            "UPDATE user_rod_instances SET is_equipped = TRUE WHERE user_id = ? AND id = ?",
-            (user_id, rod_id)
-        )
-        # execute_query方法不返回结果，我们通过检查影响的行数来判断是否成功
-        # 这里假设如果能执行到这一步，就认为是成功的
-        return True
+        return self.equipment_dao.equip_rod(user_id, rod_id)
 
     def equip_accessory(self, user_id: str, accessory_id: int) -> bool:
         """装备饰品"""
-        # 先取消当前装备的饰品
-        self.db.execute_query(
-            "UPDATE user_accessory_instances SET is_equipped = FALSE WHERE user_id = ? AND is_equipped = TRUE",
-            (user_id,)
-        )
+        return self.equipment_dao.equip_accessory(user_id, accessory_id)
 
-        # 装备新的饰品
-        result = self.db.execute_query(
-            "UPDATE user_accessory_instances SET is_equipped = TRUE WHERE user_id = ? AND id = ?",
-            (user_id, accessory_id)
-        )
-        # execute_query方法不返回结果，我们通过检查影响的行数来判断是否成功
-        # 这里假设如果能执行到这一步，就认为是成功的
-        return True
-
-    def unequip_rod(self, user_id: str, rod_id: int) -> bool:
+    def unequip_rod(self, user_id: str) -> bool:
         """卸下鱼竿"""
-        # 首先检查鱼竿是否存在且确实被装备
-        rod_check = self.db.fetch_one(
-            "SELECT id FROM user_rod_instances WHERE user_id = ? AND id = ? AND is_equipped = TRUE",
-            (user_id, rod_id)
-        )
-        if not rod_check:
-            return False
-
-        # 执行卸下操作
-        self.db.execute_query(
-            "UPDATE user_rod_instances SET is_equipped = FALSE WHERE user_id = ? AND id = ?",
-            (user_id, rod_id)
-        )
-
-        return True
+        return self.equipment_dao.unequip_rod(user_id)
 
     def unequip_accessory(self, user_id: str, accessory_id: int) -> bool:
         """卸下饰品"""
-        self.db.execute_query(
-            "UPDATE user_accessory_instances SET is_equipped = FALSE WHERE user_id = ? AND id = ?",
-            (user_id, accessory_id)
-        )
-        # execute_query方法不返回结果，我们通过检查影响的行数来判断是否成功
-        # 这里假设如果能执行到这一步，就认为是成功的
-        return True
+        return self.equipment_dao.unequip_accessory(user_id, accessory_id)
 
     def get_equipped_rod(self, user_id: str) -> Optional[Rod]:
         """获取用户装备的鱼竿"""
-        result = self.db.fetch_one(
-            """SELECT uri.id as instance_id, rt.*, uri.level, uri.exp, uri.is_equipped, uri.durability FROM user_rod_instances uri
-               JOIN rod_templates rt ON uri.rod_template_id = rt.id
-               WHERE uri.user_id = ? AND uri.is_equipped = TRUE""",
-            (user_id,)
-        )
+        result = self.equipment_dao.get_equipped_rod(user_id)
         if result:
             return Rod(
                 id=result['instance_id'],
@@ -174,13 +110,13 @@ class EquipmentService:
 
     def get_equipped_accessory(self, user_id: str) -> Optional[Accessory]:
         """获取用户装备的饰品"""
-        result = self.db.fetch_one(
-            """SELECT at.*, uai.is_equipped FROM user_accessory_instances uai
-               JOIN accessory_templates at ON uai.accessory_template_id = at.id
-               WHERE uai.user_id = ? AND uai.is_equipped = TRUE""",
-            (user_id,)
-        )
-        if result:
+        # 先获取数据
+        results = self.equipment_dao.get_user_accessories(user_id)
+        # 筛选已装备的饰品
+        equipped_accessories = [row for row in results if row.get('is_equipped')]
+
+        if equipped_accessories:
+            result = equipped_accessories[0]
             return Accessory(
                 id=result['id'],
                 name=result['name'],
@@ -256,7 +192,7 @@ class EquipmentService:
             return
 
         # 卸下鱼竿
-        success = self.unequip_rod(user_id, equipped_rod.id)
+        success = self.unequip_rod(user_id)
 
         if success:
             yield event.plain_result(f"成功卸下鱼竿: {equipped_rod.name}")
