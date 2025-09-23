@@ -111,20 +111,14 @@ class UserService:
         yesterday = get_yesterday_date()
 
         # 检查今日是否已签到
-        existing_record = self.db.fetch_one(
-            "SELECT * FROM sign_in_logs WHERE user_id = ? AND date = ?",
-            (user_id, today)
-        )
+        existing_record = self.user_dao.check_sign_in(user_id, today)
 
         if existing_record:
             yield event.plain_result("您今天已经签到过了！")
             return
 
         # 计算连续签到天数
-        yesterday_record = self.db.fetch_one(
-            "SELECT streak FROM sign_in_logs WHERE user_id = ? AND date = ?",
-            (user_id, yesterday)
-        )
+        yesterday_record = self.user_dao.yesterday_record(user_id, yesterday)
         streak = yesterday_record['streak'] + 1 if yesterday_record else 1
 
         # 计算奖励
@@ -145,12 +139,7 @@ class UserService:
         newly_achievements = exp_result['newly_achievements']
 
         # 记录签到
-        self.db.execute_query(
-            """INSERT INTO sign_in_logs
-                   (user_id, date, streak, reward_gold, timestamp)
-               VALUES (?, ?, ?, ?, ?)""",
-            (user_id, today, streak, reward_gold, int(time.time()))
-        )
+        self.user_dao.record_sign_in(user_id, today, streak, reward_gold)
 
         # 检查成就
         newly_unlocked = self.achievement_service.check_achievements(user)

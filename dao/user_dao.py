@@ -196,3 +196,41 @@ class UserDAO:
         except Exception as e:
             print(f"设置自动钓鱼状态失败: {e}")
             return False
+
+    def check_sign_in(self, user_id: str, date: str) -> bool:
+        """检查用户是否已签到"""
+        try:
+            existing_record = self.db.fetch_one(
+                "SELECT * FROM sign_in_logs WHERE user_id = ? AND date = ?",
+                (user_id, date)
+            )
+            return existing_record
+        except Exception as e:
+            print(f"设置自动钓鱼状态失败: {e}")
+            return False
+
+    def yesterday_record(self, user_id: str, date: str) -> Optional[dict]:
+        """检查用户昨天是否签到"""
+        try:
+            yesterday_record = self.db.fetch_one(
+            "SELECT streak FROM sign_in_logs WHERE user_id = ? AND date = ?",
+            (user_id, date)
+        )
+            return yesterday_record
+        except Exception as e:
+            print(f"检查用户昨天是否签到失败: {e}")
+            return None
+
+    def record_sign_in(self, user_id: str, today: str, streak: int, reward_gold: int) -> bool:
+        """记录用户签到"""
+        try:
+            self.db.execute_query(
+                """INSERT INTO sign_in_logs
+                       (user_id, date, streak, reward_gold, timestamp)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (user_id, today, streak, reward_gold, int(time.time()))
+            )
+            return True
+        except Exception as e:
+            print(f"记录用户签到失败: {e}")
+            return False

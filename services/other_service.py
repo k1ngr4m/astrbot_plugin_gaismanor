@@ -3,6 +3,7 @@ from astrbot.api.event import AstrMessageEvent
 from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.database import DatabaseManager
+from ..dao.other_dao import OtherDAO
 from .fishing_service import FishingService
 from .achievement_service import AchievementService
 from .technology_service import TechnologyService
@@ -13,6 +14,7 @@ from datetime import datetime
 class OtherService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.other_dao = OtherDAO(db_manager)
         self.fishing_service = FishingService(db_manager)
         self.achievement_service = AchievementService(db_manager)
         self.technology_service = TechnologyService(db_manager)
@@ -25,7 +27,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 获取用户信息
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
@@ -36,12 +38,11 @@ class OtherService:
             return
 
         # 切换自动钓鱼状态
-        new_auto_fishing = not user['auto_fishing']
+        new_auto_fishing = not user.auto_fishing
 
-        self.db.execute_query(
-            "UPDATE users SET auto_fishing = ? WHERE user_id = ?",
-            (new_auto_fishing, user_id)
-        )
+        if not self.other_dao.update_user_auto_fishing(user_id, new_auto_fishing):
+            yield event.plain_result("设置自动钓鱼功能失败，请稍后再试。")
+            return
 
         status = "开启" if new_auto_fishing else "关闭"
         yield event.plain_result(f"自动钓鱼功能已{status}！")
@@ -51,9 +52,7 @@ class OtherService:
         while True:
             try:
                 # 获取所有开启自动钓鱼的用户
-                auto_fishing_users = self.db.fetch_all(
-                    "SELECT * FROM users WHERE auto_fishing = TRUE"
-                )
+                auto_fishing_users = self.other_dao.get_auto_fishing_users()
 
                 for user_data in auto_fishing_users:
                     # 创建 User 对象
@@ -80,13 +79,7 @@ class OtherService:
                         result = self.fishing_service.fish(user)
 
                         # 更新用户数据
-                        self.db.execute_query(
-                            """UPDATE users SET
-                               platform=?, gold=?, fishing_count=?, last_fishing_time=?, total_fish_weight=?, total_income=?
-                               WHERE user_id=?""",
-                            (user.platform, user.gold, user.fishing_count, user.last_fishing_time,
-                             user.total_fish_weight, user.total_income, user.user_id)
-                        )
+                        self.other_dao.update_user_data(user)
 
                 # 每30秒检查一次
                 time.sleep(30)
@@ -104,22 +97,7 @@ class OtherService:
 
         # 获取综合排行榜 (前10名) - 综合考虑金币、钓鱼次数和总收益
         # 根据群聊ID进行排行
-        comprehensive_leaderboard = self.db.fetch_all("""
-            SELECT u.nickname, u.gold, u.fishing_count, u.total_income,
-                   uri.rod_template_id, rt.name as rod_name,
-                   uai.accessory_template_id, at.name as accessory_name,
-                   t.name as title_name
-            FROM users u
-            LEFT JOIN user_rod_instances uri ON u.user_id = uri.user_id AND uri.is_equipped = TRUE
-            LEFT JOIN rod_templates rt ON uri.rod_template_id = rt.id
-            LEFT JOIN user_accessory_instances uai ON u.user_id = uai.user_id AND uai.is_equipped = TRUE
-            LEFT JOIN accessory_templates at ON uai.accessory_template_id = at.id
-            LEFT JOIN user_titles ut ON u.user_id = ut.user_id AND ut.is_active = TRUE
-            LEFT JOIN titles t ON ut.title_id = t.id
-            WHERE u.group_id = ?
-            ORDER BY (u.gold + u.fishing_count * 10 + u.total_income) DESC
-            LIMIT 10
-        """, (group_id,))
+        comprehensive_leaderboard = self.other_dao.get_comprehensive_leaderboard(group_id, 10)
 
         if not comprehensive_leaderboard:
             yield event.plain_result("暂无排行榜数据！")
@@ -153,11 +131,7 @@ class OtherService:
     async def fish_gallery_command(self, event: AstrMessageEvent):
         """鱼类图鉴命令"""
         # 获取所有鱼类模板
-        fish_templates = self.db.fetch_all("""
-            SELECT id, name, description, rarity, base_value
-            FROM fish_templates
-            ORDER BY rarity DESC, base_value DESC
-        """)
+        fish_templates = self.other_dao.get_all_fish_templates()
 
         if not fish_templates:
             yield event.plain_result("暂无鱼类数据！")
@@ -185,26 +159,13 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
         # 获取用户的钓鱼记录（最近20条）
-        fishing_logs = self.db.fetch_all("""
-            SELECT fl.*, ft.name as fish_name, ft.rarity as fish_rarity,
-                   uri.rod_template_id, rt.name as rod_name,
-                   ubi.bait_template_id, bt.name as bait_name
-            FROM fishing_logs fl
-            LEFT JOIN fish_templates ft ON fl.fish_template_id = ft.id
-            LEFT JOIN user_rod_instances uri ON fl.rod_id = uri.id
-            LEFT JOIN rod_templates rt ON uri.rod_template_id = rt.id
-            LEFT JOIN user_bait_inventory ubi ON fl.bait_id = ubi.id
-            LEFT JOIN bait_templates bt ON ubi.bait_template_id = bt.id
-            WHERE fl.user_id = ?
-            ORDER BY fl.timestamp DESC
-            LIMIT 20
-        """, (user_id,))
+        fishing_logs = self.other_dao.get_fishing_logs(user_id, 20)
 
         if not fishing_logs:
             yield event.plain_result("暂无钓鱼记录！")
@@ -246,7 +207,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
@@ -295,7 +256,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
@@ -342,84 +303,49 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
         # 获取用户装备的鱼竿
-        equipped_rod = self.db.fetch_one("""
-            SELECT rt.name, rt.rarity, uri.level as refine_level
-            FROM user_rod_instances uri
-            JOIN rod_templates rt ON uri.rod_template_id = rt.id
-            WHERE uri.user_id = ? AND uri.is_equipped = TRUE
-        """, (user_id,))
-
+        equipped_rod = self.other_dao.get_user_equipped_rod(user_id)
         # 获取用户装备的饰品
-        equipped_accessory = self.db.fetch_one("""
-            SELECT at.name, at.rarity
-            FROM user_accessory_instances uai
-            JOIN accessory_templates at ON uai.accessory_template_id = at.id
-            WHERE uai.user_id = ? AND uai.is_equipped = TRUE
-        """, (user_id,))
-
+        equipped_accessory = self.other_dao.get_user_equipped_accessory(user_id)
         # 获取用户使用的鱼饵
-        current_bait = self.db.fetch_one("""
-            SELECT bt.name, bt.rarity, ubi.quantity
-            FROM user_bait_inventory ubi
-            JOIN bait_templates bt ON ubi.bait_template_id = bt.id
-            WHERE ubi.user_id = ? AND ubi.id = (
-                SELECT current_bait_id FROM users WHERE user_id = ?
-            )
-        """, (user_id, user_id))
-
+        current_bait = self.other_dao.get_user_current_bait(user_id)
         # 获取用户当前称号
-        current_title = self.db.fetch_one("""
-            SELECT t.name
-            FROM user_titles ut
-            JOIN titles t ON ut.title_id = t.id
-            WHERE ut.user_id = ? AND ut.is_active = TRUE
-        """, (user_id,))
-
+        current_title = self.other_dao.get_user_current_title(user_id)
         # 获取用户钓鱼区域信息
         fishing_zone = None
 
         # 获取鱼塘信息
-        pond_info = self.db.fetch_one("""
-            SELECT COUNT(*) as total_count, COALESCE(SUM(value), 0) as total_value
-            FROM user_fish_inventory
-            WHERE user_id = ?
-        """, (user_id,))
-
+        pond_info = self.other_dao.get_user_pond_info(user_id)
         # 获取擦弹剩余次数
         today = datetime.now().date()
         today_start = int(datetime.combine(today, datetime.min.time()).timestamp())
         today_end = int(datetime.combine(today, datetime.max.time()).timestamp())
-        wipe_bomb_count = self.db.fetch_one("""
-            SELECT COUNT(*) as count
-            FROM wipe_bomb_logs
-            WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
-        """, (user_id, today_start, today_end))
+        wipe_bomb_count = self.other_dao.get_user_wipe_bomb_count(user_id, today_start, today_end)
 
         wipe_bomb_remaining = 3 - (wipe_bomb_count['count'] if wipe_bomb_count else 0)
 
         # 构造用户状态数据
         user_data = {
             'user_id': user_id,
-            'nickname': user['nickname'] or "未知用户",
-            'coins': user['gold'],
-            'current_rod': dict(equipped_rod) if equipped_rod else None,
-            'current_accessory': dict(equipped_accessory) if equipped_accessory else None,
-            'current_bait': dict(current_bait) if current_bait else None,
-            'auto_fishing_enabled': bool(user['auto_fishing']),
+            'nickname': user.nickname or "未知用户",
+            'coins': user.gold,
+            'current_rod': equipped_rod,
+            'current_accessory': equipped_accessory,
+            'current_bait': current_bait,
+            'auto_fishing_enabled': user.auto_fishing,
             'steal_cooldown_remaining': 0,  # 简化处理
-            'fishing_zone': dict(fishing_zone) if fishing_zone else {'name': '新手池', 'daily_rare_fish_quota': 0, 'rare_fish_caught_today': 0},
-            'current_title': dict(current_title) if current_title else None,
-            'total_fishing_count': user['fishing_count'],
+            'fishing_zone': fishing_zone or {'name': '新手池', 'daily_rare_fish_quota': 0, 'rare_fish_caught_today': 0},
+            'current_title': current_title,
+            'total_fishing_count': user.fishing_count,
             'steal_total_value': 0,  # 简化处理
             'signed_in_today': True,  # 简化处理
             'wipe_bomb_remaining': max(0, wipe_bomb_remaining),
-            'pond_info': dict(pond_info) if pond_info else {'total_count': 0, 'total_value': 0}
+            'pond_info': pond_info or {'total_count': 0, 'total_value': 0}
         }
 
         # 生成状态图片
@@ -447,7 +373,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
@@ -455,9 +381,9 @@ class OtherService:
         # 解析投入的金币数
         gold_to_bet = 0
         if amount.lower() in ['梭哈', 'allin']:
-            gold_to_bet = user['gold']
+            gold_to_bet = user.gold
         elif amount.lower() in ['梭一半', 'halfin']:
-            gold_to_bet = user['gold'] // 2
+            gold_to_bet = user.gold // 2
         else:
             try:
                 gold_to_bet = int(amount)
@@ -470,7 +396,7 @@ class OtherService:
             yield event.plain_result("投入的金币数必须大于0！")
             return
 
-        if user['gold'] < gold_to_bet:
+        if user.gold < gold_to_bet:
             yield event.plain_result("您的金币不足！")
             return
 
@@ -478,11 +404,7 @@ class OtherService:
         today = datetime.now().date()
         today_start = int(datetime.combine(today, datetime.min.time()).timestamp())
         today_end = int(datetime.combine(today, datetime.max.time()).timestamp())
-        wipe_bomb_count = self.db.fetch_one("""
-            SELECT COUNT(*) as count
-            FROM wipe_bomb_logs
-            WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
-        """, (user_id, today_start, today_end))
+        wipe_bomb_count = self.other_dao.get_user_wipe_bomb_count(user_id, today_start, today_end)
 
         used_attempts = wipe_bomb_count['count'] if wipe_bomb_count else 0
         if used_attempts >= 3:
@@ -490,10 +412,9 @@ class OtherService:
             return
 
         # 扣除用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold - ? WHERE user_id = ?",
-            (gold_to_bet, user_id)
-        )
+        if not self.other_dao.deduct_user_gold(user_id, gold_to_bet):
+            yield event.plain_result("扣除金币失败，请稍后再试。")
+            return
 
         # 生成随机倍数 - 调整后的加权随机，数值合理
         # 倍数及其概率：
@@ -508,13 +429,7 @@ class OtherService:
         base_weights = [15, 15, 20, 25, 12, 9, 4]
 
         # 获取用户擦弹历史记录，用于实现保底机制和递增概率
-        wipe_history = self.db.fetch_all("""
-            SELECT multiplier, timestamp
-            FROM wipe_bomb_logs
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
-            LIMIT 10
-        """, (user_id,))
+        wipe_history = self.other_dao.get_wipe_bomb_logs(user_id, 10)
 
         # 计算连续失败次数（获得0.1x或0.5x的次数）
         consecutive_failures = 0
@@ -541,7 +456,7 @@ class OtherService:
 
         # 动态调整概率机制：根据玩家金币数量调整
         # 当玩家金币较多时，降低高收益概率；当玩家金币较少时，略微提高高收益概率
-        gold_ratio = user['gold'] / 10000  # 假设10000金币为基准
+        gold_ratio = user.gold / 10000  # 假设10000金币为基准
         if gold_ratio > 2:  # 金币是基准的2倍以上
             # 降低高收益概率
             weights[5] -= 2  # 5x
@@ -571,18 +486,14 @@ class OtherService:
         earned_gold = int(gold_to_bet * multiplier)
 
         # 增加用户金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold + ? WHERE user_id = ?",
-            (earned_gold, user_id)
-        )
+        if not self.other_dao.add_user_gold(user_id, earned_gold):
+            yield event.plain_result("增加金币失败，请稍后再试。")
+            return
 
         # 记录擦弹日志
-        self.db.execute_query(
-            """INSERT INTO wipe_bomb_logs
-               (user_id, bet_amount, multiplier, earned_amount, timestamp)
-               VALUES (?, ?, ?, ?, ?)""",
-            (user_id, gold_to_bet, multiplier, earned_gold, int(datetime.now().timestamp()))
-        )
+        if not self.other_dao.add_wipe_bomb_log(user_id, gold_to_bet, multiplier, earned_gold, int(datetime.now().timestamp())):
+            yield event.plain_result("记录擦弹日志失败，请稍后再试。")
+            return
 
         # 构造返回消息
         if multiplier >= 5:
@@ -606,19 +517,13 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = self.other_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
         # 获取用户的擦弹记录（最近20条）
-        wipe_bomb_logs = self.db.fetch_all("""
-            SELECT *
-            FROM wipe_bomb_logs
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
-            LIMIT 20
-        """, (user_id,))
+        wipe_bomb_logs = self.other_dao.get_wipe_bomb_logs(user_id, 20)
 
         if not wipe_bomb_logs:
             yield event.plain_result("暂无擦弹记录！")

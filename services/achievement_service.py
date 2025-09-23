@@ -13,12 +13,14 @@ from ..achievements.economic_achievements import (
 )
 from ..models.database import DatabaseManager
 from ..models.user import User
+from ..dao.achievement_dao import AchievementDAO
 import time
 
 
 class AchievementService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.achievement_dao = AchievementDAO(db_manager)
         # 初始化所有成就
         self.achievements = [
             # 钓鱼成就
@@ -47,54 +49,22 @@ class AchievementService:
         user_id = user.user_id
 
         # 获取用户收集的不同鱼种数量
-        unique_fish_count = self.db.fetch_one(
-            "SELECT COUNT(DISTINCT fish_template_id) as count FROM fishing_logs WHERE user_id = ? AND success = TRUE",
-            (user_id,)
-        )['count'] if self.db.fetch_one(
-            "SELECT COUNT(DISTINCT fish_template_id) as count FROM fishing_logs WHERE user_id = ? AND success = TRUE",
-            (user_id,)
-        ) else 0
+        unique_fish_count = self.achievement_dao.get_unique_fish_count(user_id)
 
         # 获取用户钓到的垃圾数量
-        garbage_count = self.db.fetch_one(
-            "SELECT COUNT(*) as count FROM fishing_logs WHERE user_id = ? AND fish_template_id = 0 AND success = TRUE",
-            (user_id,)
-        )['count'] if self.db.fetch_one(
-            "SELECT COUNT(*) as count FROM fishing_logs WHERE user_id = ? AND fish_template_id = 0 AND success = TRUE",
-            (user_id,)
-        ) else 0
+        garbage_count = self.achievement_dao.get_garbage_count(user_id)
 
-        # 获取用户获得的最大擦弹倍率 (假设在fishing_logs中存储)
-        try:
-            max_wipe_result = self.db.fetch_one(
-                "SELECT MAX(wipe_multiplier) as max_multiplier FROM fishing_logs WHERE user_id = ? AND wipe_multiplier > 1",
-                (user_id,)
-            )
-            max_wipe_bomb_multiplier = max_wipe_result['max_multiplier'] if max_wipe_result and max_wipe_result['max_multiplier'] else 0.0
-        except Exception as e:
-            # 如果列不存在，返回0.0
-            max_wipe_bomb_multiplier = 0.0
+        # 获取用户获得的最大擦弹倍率
+        max_wipe_bomb_multiplier = self.achievement_dao.get_max_wipe_multiplier(user_id)
 
         # 获取用户拥有的鱼竿稀有度
-        rod_rarities_result = self.db.fetch_all(
-            "SELECT DISTINCT rt.rarity FROM user_rod_instances uri JOIN rod_templates rt ON uri.rod_template_id = rt.id WHERE uri.user_id = ?",
-            (user_id,)
-        )
-        owned_rod_rarities = {r['rarity'] for r in rod_rarities_result} if rod_rarities_result else set()
+        owned_rod_rarities = self.achievement_dao.get_owned_rod_rarities(user_id)
 
         # 获取用户拥有的饰品稀有度
-        accessory_rarities_result = self.db.fetch_all(
-            "SELECT DISTINCT at.rarity FROM user_accessory_instances uai JOIN accessory_templates at ON uai.accessory_template_id = at.id WHERE uai.user_id = ?",
-            (user_id,)
-        )
-        owned_accessory_rarities = {r['rarity'] for r in accessory_rarities_result} if accessory_rarities_result else set()
+        owned_accessory_rarities = self.achievement_dao.get_owned_accessory_rarities(user_id)
 
         # 检查用户是否钓到过重鱼 (超过100kg)
-        heavy_fish_result = self.db.fetch_one(
-            "SELECT COUNT(*) as count FROM fishing_logs WHERE user_id = ? AND fish_weight >= 100 AND success = TRUE",
-            (user_id,)
-        )
-        has_heavy_fish = heavy_fish_result and heavy_fish_result['count'] > 0
+        has_heavy_fish = self.achievement_dao.has_heavy_fish(user_id)
 
         return UserContext(
             user=user,
@@ -125,24 +95,12 @@ class AchievementService:
             # 检查成就条件
             if achievement.check(context):
                 # 记录成就完成
-                now = int(time.time())
-                if existing_record:
-                    # 更新现有记录
-                    self.db.execute_query(
-                        "UPDATE user_achievements SET completed = TRUE, completed_at = ?, progress = ? WHERE user_id = ? AND achievement_id = ?",
-                        (now, achievement.get_progress(context), user.user_id, achievement.id)
-                    )
-                else:
-                    # 创建新记录
-                    self.db.execute_query(
-                        "INSERT INTO user_achievements (user_id, achievement_id, progress, completed, completed_at) VALUES (?, ?, ?, TRUE, ?)",
-                        (user.user_id, achievement.id, achievement.get_progress(context), now)
-                    )
+                progress = achievement.get_progress(context)
+                if self.achievement_dao.update_achievement_progress(user.user_id, achievement.id, progress, True):
+                    newly_unlocked.append(achievement)
 
-                newly_unlocked.append(achievement)
-
-                # 发放奖励
-                self._grant_reward(user, achievement.reward)
+                    # 发放奖励
+                    self._grant_reward(user, achievement.reward)
 
         return newly_unlocked
 
@@ -159,18 +117,7 @@ class AchievementService:
         elif reward_type == "title":
             # 授予称号
             title_id = reward_value
-            now = int(time.time())
-            # 检查是否已经有这个称号
-            existing_title = self.db.fetch_one(
-                "SELECT id FROM user_titles WHERE user_id = ? AND title_id = ?",
-                (user.user_id, title_id)
-            )
-
-            if not existing_title:
-                self.db.execute_query(
-                    "INSERT INTO user_titles (user_id, title_id, acquired_at) VALUES (?, ?, ?)",
-                    (user.user_id, title_id, now)
-                )
+            self.achievement_dao.grant_title_to_user(user.user_id, title_id)
         elif reward_type == "bait":
             # 增加鱼饵
             bait_id = reward_value
@@ -204,13 +151,7 @@ class AchievementService:
         all_achievements = {ach.id: ach for ach in self.achievements}
 
         # 获取用户成就记录
-        user_records = self.db.fetch_all(
-            """SELECT ua.achievement_id, ua.progress, ua.completed, ua.completed_at, a.name, a.description
-               FROM user_achievements ua
-               JOIN achievements a ON ua.achievement_id = a.id
-               WHERE ua.user_id = ?""",
-            (user_id,)
-        )
+        user_records = self.achievement_dao.get_user_achievements_progress(user_id)
 
         # 整合成就信息
         result = []
@@ -248,36 +189,8 @@ class AchievementService:
 
     def get_user_titles(self, user_id: str) -> List[dict]:
         """获取用户拥有的称号"""
-        titles = self.db.fetch_all(
-            """SELECT ut.title_id, ut.acquired_at, ut.is_active, t.name, t.description
-               FROM user_titles ut
-               JOIN titles t ON ut.title_id = t.id
-               WHERE ut.user_id = ?""",
-            (user_id,)
-        )
-        return titles or []
+        return self.achievement_dao.get_user_titles(user_id)
 
     def activate_title(self, user_id: str, title_id: int) -> bool:
         """激活用户称号"""
-        # 先检查用户是否拥有该称号
-        title_exists = self.db.fetch_one(
-            "SELECT id FROM user_titles WHERE user_id = ? AND title_id = ?",
-            (user_id, title_id)
-        )
-
-        if not title_exists:
-            return False
-
-        # 取消其他称号的激活状态
-        self.db.execute_query(
-            "UPDATE user_titles SET is_active = FALSE WHERE user_id = ?",
-            (user_id,)
-        )
-
-        # 激活指定称号
-        self.db.execute_query(
-            "UPDATE user_titles SET is_active = TRUE WHERE user_id = ? AND title_id = ?",
-            (user_id, title_id)
-        )
-
-        return True
+        return self.achievement_dao.activate_user_title(user_id, title_id)

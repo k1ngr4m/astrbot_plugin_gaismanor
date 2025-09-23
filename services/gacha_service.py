@@ -4,12 +4,14 @@ from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.database import DatabaseManager
+from ..dao.gacha_dao import GachaDAO
 import random
 import time
 
 class GachaService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.gacha_dao = GachaDAO(db_manager)
         # 从数据库加载卡池数据
         self.gacha_pools = self._load_gacha_pools()
 
@@ -18,25 +20,19 @@ class GachaService:
         pools = {}
 
         # 获取所有卡池
-        pool_records = self.db.fetch_all("SELECT * FROM gacha_pools WHERE enabled = TRUE ORDER BY sort_order, id")
+        pool_records = self.gacha_dao.get_enabled_gacha_pools()
 
         for pool_record in pool_records:
             pool_id = pool_record['id']
 
             # 获取卡池稀有度权重
             rarity_weights = {}
-            weights = self.db.fetch_all(
-                "SELECT rarity, weight FROM gacha_pool_rarity_weights WHERE pool_id = ?",
-                (pool_id,)
-            )
+            weights = self.gacha_dao.get_gacha_pool_rarity_weights(pool_id)
             for weight in weights:
                 rarity_weights[weight['rarity']] = weight['weight']
 
             # 获取卡池中的物品
-            items = self.db.fetch_all(
-                "SELECT item_type, item_template_id FROM gacha_pool_items WHERE pool_id = ?",
-                (pool_id,)
-            )
+            items = self.gacha_dao.get_gacha_pool_items(pool_id)
 
             # 按类型分组物品ID
             items_dict = {"rod": [], "accessory": [], "bait": []}
@@ -85,29 +81,7 @@ class GachaService:
         item_ids = pool["items"][item_type]
 
         # 从数据库中获取对应稀有度的物品
-        if item_type == "rod":
-            items = self.db.fetch_all(
-                "SELECT id FROM rod_templates WHERE id IN ({}) AND rarity = ?".format(
-                    ','.join('?' * len(item_ids))
-                ),
-                item_ids + [rarity]
-            )
-        elif item_type == "accessory":
-            items = self.db.fetch_all(
-                "SELECT id FROM accessory_templates WHERE id IN ({}) AND rarity = ?".format(
-                    ','.join('?' * len(item_ids))
-                ),
-                item_ids + [rarity]
-            )
-        elif item_type == "bait":
-            items = self.db.fetch_all(
-                "SELECT id FROM bait_templates WHERE id IN ({}) AND rarity = ?".format(
-                    ','.join('?' * len(item_ids))
-                ),
-                item_ids + [rarity]
-            )
-        else:
-            return None
+        items = self.gacha_dao.get_items_by_rarity(item_type, item_ids, rarity)
 
         if not items:
             return None
@@ -117,51 +91,13 @@ class GachaService:
 
     def add_item_to_user(self, user_id: str, item_type: str, item_template_id: int) -> bool:
         """将抽到的物品添加到用户背包"""
-        try:
-            now = int(time.time())
-
-            if item_type == "rod":
-                # 添加鱼竿到用户背包
-                self.db.execute_query(
-                    """INSERT INTO user_rod_instances
-                       (user_id, rod_template_id, level, exp, is_equipped, acquired_at, durability)
-                       VALUES (?, ?, 1, 0, FALSE, ?, 100)""",
-                    (user_id, item_template_id, now)
-                )
-            elif item_type == "accessory":
-                # 添加饰品到用户背包
-                self.db.execute_query(
-                    """INSERT INTO user_accessory_instances
-                       (user_id, accessory_template_id, is_equipped, acquired_at)
-                       VALUES (?, ?, FALSE, ?)""",
-                    (user_id, item_template_id, now)
-                )
-            elif item_type == "bait":
-                # 检查用户是否已有该鱼饵
-                existing = self.db.fetch_one(
-                    """SELECT id, quantity FROM user_bait_inventory
-                       WHERE user_id = ? AND bait_template_id = ?""",
-                    (user_id, item_template_id)
-                )
-
-                if existing:
-                    # 增加现有鱼饵数量
-                    self.db.execute_query(
-                        "UPDATE user_bait_inventory SET quantity = quantity + 1 WHERE id = ?",
-                        (existing['id'],)
-                    )
-                else:
-                    # 添加新鱼饵
-                    self.db.execute_query(
-                        """INSERT INTO user_bait_inventory
-                           (user_id, bait_template_id, quantity)
-                           VALUES (?, ?, 1)""",
-                        (user_id, item_template_id)
-                    )
-
-            return True
-        except Exception as e:
-            print(f"添加物品到用户背包时出错: {e}")
+        if item_type == "rod":
+            return self.gacha_dao.add_rod_to_user(user_id, item_template_id)
+        elif item_type == "accessory":
+            return self.gacha_dao.add_accessory_to_user(user_id, item_template_id)
+        elif item_type == "bait":
+            return self.gacha_dao.add_bait_to_user(user_id, item_template_id)
+        else:
             return False
 
     async def gacha_command(self, event: AstrMessageEvent, pool_id: int):
@@ -174,16 +110,15 @@ class GachaService:
             return
 
         # 检查用户金币 (假设单次抽卡消耗100金币)
-        user = self.db.fetch_one("SELECT gold FROM users WHERE user_id = ?", (user_id,))
+        user = self.gacha_dao.get_user_gold(user_id)
         if not user or user['gold'] < 100:
             yield event.plain_result("金币不足！单次抽卡需要100金币。")
             return
 
         # 扣除金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold - 100 WHERE user_id = ?",
-            (user_id,)
-        )
+        if not self.gacha_dao.deduct_user_gold(user_id, 100):
+            yield event.plain_result("扣除金币失败，请稍后再试。")
+            return
 
         # 执行抽卡
         pool = self.gacha_pools[pool_id]
@@ -200,20 +135,10 @@ class GachaService:
             return
 
         # 获取物品名称
-        if item_type == "rod":
-            item = self.db.fetch_one("SELECT name FROM rod_templates WHERE id = ?", (item_template_id,))
-        elif item_type == "accessory":
-            item = self.db.fetch_one("SELECT name FROM accessory_templates WHERE id = ?", (item_template_id,))
-        elif item_type == "bait":
-            item = self.db.fetch_one("SELECT name FROM bait_templates WHERE id = ?", (item_template_id,))
-        else:
-            item = None
-
-        if not item:
+        item_name = self.gacha_dao.get_item_name(item_type, item_template_id)
+        if not item_name:
             yield event.plain_result("抽卡失败，请稍后再试。")
             return
-
-        item_name = item['name']
 
         # 添加物品到用户背包
         if not self.add_item_to_user(user_id, item_type, item_template_id):
@@ -221,12 +146,9 @@ class GachaService:
             return
 
         # 记录抽卡日志
-        self.db.execute_query(
-            """INSERT INTO gacha_logs
-               (user_id, item_type, item_template_id, rarity, timestamp)
-               VALUES (?, ?, ?, ?, ?)""",
-            (user_id, item_type, item_template_id, rarity, int(time.time()))
-        )
+        if not self.gacha_dao.add_gacha_log(user_id, item_type, item_template_id, rarity):
+            yield event.plain_result("抽卡成功，但记录日志时出错。")
+            return
 
         # 构造返回消息
         rarity_stars = "★" * rarity
@@ -248,16 +170,15 @@ class GachaService:
             return
 
         # 检查用户金币 (十连抽卡消耗900金币，相当于9折)
-        user = self.db.fetch_one("SELECT gold FROM users WHERE user_id = ?", (user_id,))
+        user = self.gacha_dao.get_user_gold(user_id)
         if not user or user['gold'] < 900:
             yield event.plain_result("金币不足！十连抽卡需要900金币。")
             return
 
         # 扣除金币
-        self.db.execute_query(
-            "UPDATE users SET gold = gold - 900 WHERE user_id = ?",
-            (user_id,)
-        )
+        if not self.gacha_dao.deduct_user_gold(user_id, 900):
+            yield event.plain_result("扣除金币失败，请稍后再试。")
+            return
 
         # 执行十连抽卡
         pool = self.gacha_pools[pool_id]
@@ -276,31 +197,17 @@ class GachaService:
                 continue
 
             # 获取物品名称
-            if item_type == "rod":
-                item = self.db.fetch_one("SELECT name FROM rod_templates WHERE id = ?", (item_template_id,))
-            elif item_type == "accessory":
-                item = self.db.fetch_one("SELECT name FROM accessory_templates WHERE id = ?", (item_template_id,))
-            elif item_type == "bait":
-                item = self.db.fetch_one("SELECT name FROM bait_templates WHERE id = ?", (item_template_id,))
-            else:
-                item = None
-
-            if not item:
+            item_name = self.gacha_dao.get_item_name(item_type, item_template_id)
+            if not item_name:
                 continue
-
-            item_name = item['name']
 
             # 添加物品到用户背包
             if not self.add_item_to_user(user_id, item_type, item_template_id):
                 continue
 
             # 记录抽卡日志
-            self.db.execute_query(
-                """INSERT INTO gacha_logs
-                   (user_id, item_type, item_template_id, rarity, timestamp)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (user_id, item_type, item_template_id, rarity, int(time.time()))
-            )
+            if not self.gacha_dao.add_gacha_log(user_id, item_type, item_template_id, rarity):
+                continue
 
             results.append({
                 "name": item_name,
@@ -343,26 +250,32 @@ class GachaService:
         # 显示鱼竿
         pool_info += "鱼竿:\n\n"
         for rod_id in pool["items"]["rod"]:
+            rod_name = self.gacha_dao.get_item_name("rod", rod_id)
+            # 由于GachaDAO中没有直接获取物品稀有度的方法，我们仍然需要查询数据库
             rod = self.db.fetch_one("SELECT name, rarity FROM rod_templates WHERE id = ?", (rod_id,))
-            if rod:
+            if rod and rod_name:
                 stars = "★" * rod['rarity']
-                pool_info += f"  · {rod['name']} ({stars})\n\n"
+                pool_info += f"  · {rod_name} ({stars})\n\n"
 
         # 显示饰品
         pool_info += "饰品:\n\n"
         for accessory_id in pool["items"]["accessory"]:
+            accessory_name = self.gacha_dao.get_item_name("accessory", accessory_id)
+            # 由于GachaDAO中没有直接获取物品稀有度的方法，我们仍然需要查询数据库
             accessory = self.db.fetch_one("SELECT name, rarity FROM accessory_templates WHERE id = ?", (accessory_id,))
-            if accessory:
+            if accessory and accessory_name:
                 stars = "★" * accessory['rarity']
-                pool_info += f"  · {accessory['name']} ({stars})\n\n"
+                pool_info += f"  · {accessory_name} ({stars})\n\n"
 
         # 显示鱼饵
         pool_info += "鱼饵:\n\n"
         for bait_id in pool["items"]["bait"]:
+            bait_name = self.gacha_dao.get_item_name("bait", bait_id)
+            # 由于GachaDAO中没有直接获取物品稀有度的方法，我们仍然需要查询数据库
             bait = self.db.fetch_one("SELECT name, rarity FROM bait_templates WHERE id = ?", (bait_id,))
-            if bait:
+            if bait and bait_name:
                 stars = "★" * bait['rarity']
-                pool_info += f"  · {bait['name']} ({stars})\n\n"
+                pool_info += f"  · {bait_name} ({stars})\n\n"
 
         yield event.plain_result(pool_info)
 
@@ -371,15 +284,7 @@ class GachaService:
         user_id = event.get_sender_id()
 
         # 获取用户的抽卡记录
-        logs = self.db.fetch_all(
-            """SELECT gl.*, rt.name as item_name, rt.rarity as item_rarity
-               FROM gacha_logs gl
-               LEFT JOIN rod_templates rt ON gl.item_template_id = rt.id AND gl.item_type = 'rod'
-               WHERE gl.user_id = ?
-               ORDER BY gl.timestamp DESC
-               LIMIT 20""",
-            (user_id,)
-        )
+        logs = self.gacha_dao.get_gacha_logs(user_id, 20)
 
         # 如果没有抽卡记录
         if not logs:
@@ -387,25 +292,9 @@ class GachaService:
             return
 
         # 获取其他类型的物品名称
-        accessory_logs = self.db.fetch_all(
-            """SELECT gl.*, at.name as item_name, at.rarity as item_rarity
-               FROM gacha_logs gl
-               LEFT JOIN accessory_templates at ON gl.item_template_id = at.id AND gl.item_type = 'accessory'
-               WHERE gl.user_id = ? AND gl.item_type = 'accessory'
-               ORDER BY gl.timestamp DESC
-               LIMIT 20""",
-            (user_id,)
-        )
+        accessory_logs = self.gacha_dao.get_accessory_logs(user_id, 20)
 
-        bait_logs = self.db.fetch_all(
-            """SELECT gl.*, bt.name as item_name, bt.rarity as item_rarity
-               FROM gacha_logs gl
-               LEFT JOIN bait_templates bt ON gl.item_template_id = bt.id AND gl.item_type = 'bait'
-               WHERE gl.user_id = ? AND gl.item_type = 'bait'
-               ORDER BY gl.timestamp DESC
-               LIMIT 20""",
-            (user_id,)
-        )
+        bait_logs = self.gacha_dao.get_bait_logs(user_id, 20)
 
         # 合并所有记录并按时间排序
         all_logs = list(logs) + list(accessory_logs) + list(bait_logs)
