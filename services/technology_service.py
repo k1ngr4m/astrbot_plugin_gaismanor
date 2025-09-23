@@ -181,6 +181,14 @@ class TechnologyService:
                 "UPDATE users SET fish_pond_capacity = fish_pond_capacity + ? WHERE user_id = ?",
                 (technology.effect_value, user_id)
             )
+        elif technology.effect_type == "unlock_rod":
+            # 对于解锁鱼竿类型的科技，我们不需要特殊处理
+            # 鱼竿解锁通过商店界面和购买逻辑来控制
+            pass
+        elif technology.effect_type == "unlock_bait":
+            # 对于解锁鱼饵类型的科技，我们不需要特殊处理
+            # 鱼饵解锁通过商店界面和购买逻辑来控制
+            pass
 
     def _get_user(self, user_id: str) -> Optional[User]:
         """获取用户信息"""

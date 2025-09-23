@@ -41,7 +41,14 @@ class ShopService:
 
     async def shop_rods_command(self, event: AstrMessageEvent):
         """查看鱼竿商店商品"""
-        rods = self.get_rod_shop_items()
+        user_id = event.get_sender_id()
+        user = self.get_user(user_id)
+
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        rods = self.get_rod_shop_items(user.level)
 
         if not rods:
             yield event.plain_result("暂无鱼竿商品")
@@ -58,7 +65,19 @@ class ShopService:
 
     async def shop_bait_command(self, event: AstrMessageEvent):
         """查看鱼饵商店商品"""
-        bait_list = self.get_bait_shop_items()
+        user_id = event.get_sender_id()
+        user = self.get_user(user_id)
+
+        if not user:
+            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            return
+
+        # 检查用户是否已解锁鱼饵系统
+        if not self.is_bait_system_unlocked(user_id):
+            yield event.plain_result("您尚未解锁鱼饵系统！请先升级到5级以解锁鱼饵系统。")
+            return
+
+        bait_list = self.get_bait_shop_items(user.level)
 
         if not bait_list:
             yield event.plain_result("暂无鱼饵商品")
@@ -100,6 +119,11 @@ class ShopService:
             yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
             return
 
+        # 检查用户是否已解锁鱼饵系统
+        if not self.is_bait_system_unlocked(user_id):
+            yield event.plain_result("您尚未解锁鱼饵系统！请先升级到5级以解锁鱼饵系统。")
+            return
+
         # 购买鱼饵
         success = self.buy_bait(user_id, bait_id, quantity)
 
@@ -111,7 +135,7 @@ class ShopService:
             bait_name = bait_template['name'] if bait_template else "未知鱼饵"
             yield event.plain_result(f"成功购买鱼饵: {bait_name} x{quantity}")
         else:
-            yield event.plain_result("购买鱼饵失败，请检查金币是否足够或商品是否存在")
+            yield event.plain_result("购买鱼饵失败，请检查金币是否足够、商品是否存在或您是否已解锁鱼饵系统")
 
     async def buy_accessory_command(self, event: AstrMessageEvent, accessory_id: int):
         """购买饰品"""
@@ -246,16 +270,31 @@ class ShopService:
         else:
             yield event.plain_result("装备鱼竿失败")
 
-    def get_rod_shop_items(self) -> List[RodTemplate]:
+    def get_rod_shop_items(self, user_level: int = 1) -> List[RodTemplate]:
         """获取鱼竿商店商品"""
-        results = self.db.fetch_all("""
+        # 根据用户等级过滤可购买的鱼竿
+        # 竹制鱼竿(2级)需要用户达到3级才能购买
+        # 长者之竿(2级)需要用户达到8级才能购买
+        # 冷静之竿(3级)需要用户达到12级才能购买
+        # 碳素纤维竿(3级)需要用户达到20级才能购买
+        if user_level >= 3:
+            rarity_filter = "rt.rarity >= 1"
+        else:
+            rarity_filter = "rt.rarity = 1"  # 只显示1级鱼竿
+
+        results = self.db.fetch_all(f"""
             SELECT rt.*,
                    COALESCE(srt.purchase_cost, rt.purchase_cost) as purchase_cost
             FROM rod_templates rt
             LEFT JOIN shop_rod_templates srt ON rt.id = srt.rod_template_id
             WHERE rt.source = 'shop' AND (srt.enabled = 1 OR srt.enabled IS NULL)
+                  AND ({rarity_filter} OR rt.name = '新手木竿')
+                  AND NOT (rt.name = '竹制鱼竿' AND ? < 3)
+                  AND NOT (rt.name = '长者之竿' AND ? < 8)
+                  AND NOT (rt.name = '冷静之竿' AND ? < 12)
+                  AND NOT (rt.name = '碳素纤维竿' AND ? < 20)
             ORDER BY rt.rarity, rt.id
-        """)
+        """, (user_level, user_level, user_level, user_level))
         return [
             RodTemplate(
                 id=row['id'],
@@ -272,8 +311,12 @@ class ShopService:
             ) for row in results
         ]
 
-    def get_bait_shop_items(self) -> List[BaitTemplate]:
+    def get_bait_shop_items(self, user_level: int = 1) -> List[BaitTemplate]:
         """获取鱼饵商店商品"""
+        # 5级以下的用户无法看到鱼饵商品
+        if user_level < 5:
+            return []
+
         results = self.db.fetch_all("""
             SELECT bt.*,
                    COALESCE(sbt.cost, bt.cost) as cost
@@ -351,8 +394,28 @@ class ShopService:
             )
         return None
 
+    def is_bait_system_unlocked(self, user_id: str) -> bool:
+        """检查用户是否已解锁鱼饵系统"""
+        # 先检查用户是否达到5级
+        user = self.get_user(user_id)
+        if user and user.level >= 5:
+            return True
+
+        # 再检查是否通过科技解锁
+        result = self.db.fetch_one(
+            """SELECT ut.id FROM user_technologies ut
+               JOIN technologies t ON ut.tech_id = t.id
+               WHERE ut.user_id = ? AND t.name = '鱼饵系统'""",
+            (user_id,)
+        )
+        return result is not None
+
     def buy_bait(self, user_id: str, bait_id: int, quantity: int = 1) -> bool:
         """购买鱼饵"""
+        # 检查用户是否已解锁鱼饵系统
+        if not self.is_bait_system_unlocked(user_id):
+            return False
+
         # 获取商店中的鱼饵信息
         bait_info = self.db.fetch_one("""
             SELECT bt.*, COALESCE(sbt.cost, bt.cost) as cost, sbt.stock
@@ -456,6 +519,11 @@ class ShopService:
 
     def buy_rod(self, user_id: str, rod_id: int) -> bool:
         """购买鱼竿"""
+        # 获取用户信息
+        user = self.get_user(user_id)
+        if not user:
+            return False
+
         # 获取商店中的鱼竿信息
         rod_info = self.db.fetch_one("""
             SELECT rt.*, COALESCE(srt.purchase_cost, rt.purchase_cost) as purchase_cost, srt.stock
@@ -467,13 +535,26 @@ class ShopService:
         if not rod_info:
             return False
 
+        # 检查等级限制
+        # 竹制鱼竿需要用户达到3级才能购买
+        if rod_info['name'] == '竹制鱼竿' and user.level < 3:
+            return False
+        # 长者之竿需要用户达到8级才能购买
+        if rod_info['name'] == '长者之竿' and user.level < 8:
+            return False
+        # 冷静之竿需要用户达到12级才能购买
+        if rod_info['name'] == '冷静之竿' and user.level < 12:
+            return False
+        # 碳素纤维竿需要用户达到20级才能购买
+        if rod_info['name'] == '碳素纤维竿' and user.level < 20:
+            return False
+
         # 检查库存是否足够（0表示无限库存）
         if rod_info['stock'] is not None and rod_info['stock'] > 0 and rod_info['stock'] < 1:
             return False
 
         # 检查用户金币是否足够
-        user = self.get_user(user_id)
-        if not user or user.gold < (rod_info['purchase_cost'] or 0):
+        if user.gold < (rod_info['purchase_cost'] or 0):
             return False
 
         # 扣除金币
