@@ -7,6 +7,7 @@ from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitT
 from ..models.database import DatabaseManager
 from ..dao.shop_dao import ShopDAO
 from ..dao.user_dao import UserDAO
+from ..enums.messages import Messages
 import time
 
 class ShopService:
@@ -47,13 +48,13 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         rods = self.get_rod_shop_items(user.level)
 
         if not rods:
-            yield event.plain_result("暂无鱼竿商品")
+            yield event.plain_result(Messages.SHOP_NO_ROD_ITEMS.value)
             return
 
         rod_info = "=== 鱼竿商店 ===\n\n"
@@ -71,18 +72,18 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查用户是否已解锁鱼饵系统
         if not self.is_bait_system_unlocked(user_id):
-            yield event.plain_result("您尚未解锁鱼饵系统！请先升级到5级以解锁鱼饵系统。")
+            yield event.plain_result(Messages.SHOP_BAIT_SYSTEM_NOT_UNLOCKED.value)
             return
 
         bait_list = self.get_bait_shop_items(user.level)
 
         if not bait_list:
-            yield event.plain_result("暂无鱼饵商品")
+            yield event.plain_result(Messages.SHOP_NO_BAIT_ITEMS.value)
             return
 
         bait_info = "=== 鱼饵商店 ===\n\n"
@@ -99,7 +100,7 @@ class ShopService:
         accessory_list = self.get_accessory_shop_items()
 
         if not accessory_list:
-            yield event.plain_result("暂无饰品商品")
+            yield event.plain_result(Messages.SHOP_NO_ACCESSORY_ITEMS.value)
             return
 
         accessory_info = "=== 饰品商店 ===\n\n"
@@ -118,12 +119,12 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查用户是否已解锁鱼饵系统
         if not self.is_bait_system_unlocked(user_id):
-            yield event.plain_result("您尚未解锁鱼饵系统！请先升级到5级以解锁鱼饵系统。")
+            yield event.plain_result(Messages.SHOP_BAIT_SYSTEM_NOT_UNLOCKED.value)
             return
 
         # 购买鱼饵
@@ -135,9 +136,9 @@ class ShopService:
                 (bait_id,)
             )
             bait_name = bait_template['name'] if bait_template else "未知鱼饵"
-            yield event.plain_result(f"成功购买鱼饵: {bait_name} x{quantity}")
+            yield event.plain_result(f"{Messages.SHOP_BUY_BAIT_SUCCESS.value}: {bait_name} x{quantity}")
         else:
-            yield event.plain_result("购买鱼饵失败，请检查金币是否足够、商品是否存在或您是否已解锁鱼饵系统")
+            yield event.plain_result(Messages.SHOP_BUY_BAIT_FAILED.value)
 
     async def buy_accessory_command(self, event: AstrMessageEvent, accessory_id: int):
         """购买饰品"""
@@ -145,7 +146,7 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 购买饰品
@@ -157,9 +158,9 @@ class ShopService:
                 (accessory_id,)
             )
             accessory_name = accessory_template['name'] if accessory_template else "未知饰品"
-            yield event.plain_result(f"成功购买饰品: {accessory_name}")
+            yield event.plain_result(f"{Messages.SHOP_BUY_ACCESSORY_SUCCESS.value}: {accessory_name}")
         else:
-            yield event.plain_result("购买饰品失败，请检查金币是否足够或商品是否存在")
+            yield event.plain_result(Messages.SHOP_BUY_ACCESSORY_FAILED.value)
 
     async def buy_rod_command(self, event: AstrMessageEvent, rod_id: int):
         """购买鱼竿"""
@@ -167,7 +168,7 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 购买鱼竿
@@ -179,9 +180,9 @@ class ShopService:
                 (rod_id,)
             )
             rod_name = rod_template['name'] if rod_template else "未知鱼竿"
-            yield event.plain_result(f"成功购买鱼竿: {rod_name}")
+            yield event.plain_result(f"{Messages.SHOP_BUY_ROD_SUCCESS.value}: {rod_name}")
         else:
-            yield event.plain_result("购买鱼竿失败，请检查金币是否足够或商品是否存在")
+            yield event.plain_result(Messages.SHOP_BUY_ROD_FAILED.value)
 
     async def use_bait_command(self, event: AstrMessageEvent, bait_id: int):
         """使用鱼饵命令"""
@@ -189,7 +190,7 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查鱼饵是否存在
@@ -199,11 +200,11 @@ class ShopService:
         )
 
         if not bait_instance:
-            yield event.plain_result("您没有该鱼饵或数量不足")
+            yield event.plain_result(Messages.SHOP_USE_BAIT_NOT_OWNED.value)
             return
 
         # 使用鱼饵（这里简化处理，实际应该应用鱼饵效果）
-        yield event.plain_result("鱼饵使用功能正在开发中，敬请期待！")
+        yield event.plain_result(Messages.SHOP_USE_BAIT_FEATURE_COMING_SOON.value)
 
     async def use_accessory_command(self, event: AstrMessageEvent, accessory_id: int):
         """装备饰品命令"""
@@ -214,7 +215,7 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查饰品是否存在
@@ -224,7 +225,7 @@ class ShopService:
         )
 
         if not accessory_instance:
-            yield event.plain_result("您没有该饰品")
+            yield event.plain_result(Messages.SHOP_EQUIP_ACCESSORY_NOT_OWNED.value)
             return
 
         # 装备饰品
@@ -236,9 +237,9 @@ class ShopService:
                 (accessory_id,)
             )
             accessory_name = accessory_template['name'] if accessory_template else "未知饰品"
-            yield event.plain_result(f"成功装备饰品: {accessory_name}")
+            yield event.plain_result(f"{Messages.SHOP_EQUIP_ACCESSORY_SUCCESS.value}: {accessory_name}")
         else:
-            yield event.plain_result("装备饰品失败")
+            yield event.plain_result(Messages.SHOP_EQUIP_ACCESSORY_FAILED.value)
 
     async def use_rod_command(self, event: AstrMessageEvent, rod_id: int):
         """装备鱼竿命令"""
@@ -246,7 +247,7 @@ class ShopService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查鱼竿是否存在
@@ -256,7 +257,7 @@ class ShopService:
         )
 
         if not rod_instance:
-            yield event.plain_result("您没有该鱼竿")
+            yield event.plain_result(Messages.SHOP_EQUIP_ROD_NOT_OWNED.value)
             return
 
         # 装备鱼竿
@@ -268,9 +269,9 @@ class ShopService:
                 (rod_id,)
             )
             rod_name = rod_template['name'] if rod_template else "未知鱼竿"
-            yield event.plain_result(f"成功装备鱼竿: {rod_name}")
+            yield event.plain_result(f"{Messages.SHOP_EQUIP_ROD_SUCCESS.value}: {rod_name}")
         else:
-            yield event.plain_result("装备鱼竿失败")
+            yield event.plain_result(Messages.SHOP_EQUIP_ROD_FAILED.value)
 
     def get_rod_shop_items(self, user_level: int = 1) -> List[RodTemplate]:
         """获取鱼竿商店商品"""

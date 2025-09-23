@@ -5,6 +5,7 @@ from ..models.fishing import FishTemplate
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.database import DatabaseManager
 from ..dao.gacha_dao import GachaDAO
+from ..enums.messages import Messages
 import random
 import time
 
@@ -106,18 +107,18 @@ class GachaService:
 
         # 检查卡池是否存在
         if pool_id not in self.gacha_pools:
-            yield event.plain_result("无效的卡池ID！请使用 1-3 之间的数字。")
+            yield event.plain_result(Messages.GACHA_INVALID_POOL.value)
             return
 
         # 检查用户金币 (假设单次抽卡消耗100金币)
         user = self.gacha_dao.get_user_gold(user_id)
         if not user or user['gold'] < 100:
-            yield event.plain_result("金币不足！单次抽卡需要100金币。")
+            yield event.plain_result(Messages.GACHA_NOT_ENOUGH_GOLD.value)
             return
 
         # 扣除金币
         if not self.gacha_dao.deduct_user_gold(user_id, 100):
-            yield event.plain_result("扣除金币失败，请稍后再试。")
+            yield event.plain_result(Messages.GACHA_DEDUCT_GOLD_FAILED.value)
             return
 
         # 执行抽卡
@@ -131,28 +132,28 @@ class GachaService:
         # 获取物品
         item_template_id = self.get_random_item(pool_id, item_type, rarity)
         if not item_template_id:
-            yield event.plain_result("抽卡失败，请稍后再试。")
+            yield event.plain_result(Messages.GACHA_FAILED.value)
             return
 
         # 获取物品名称
         item_name = self.gacha_dao.get_item_name(item_type, item_template_id)
         if not item_name:
-            yield event.plain_result("抽卡失败，请稍后再试。")
+            yield event.plain_result(Messages.GACHA_FAILED.value)
             return
 
         # 添加物品到用户背包
         if not self.add_item_to_user(user_id, item_type, item_template_id):
-            yield event.plain_result("抽卡成功，但添加物品到背包时出错。")
+            yield event.plain_result(Messages.GACHA_ADD_ITEM_FAILED.value)
             return
 
         # 记录抽卡日志
         if not self.gacha_dao.add_gacha_log(user_id, item_type, item_template_id, rarity):
-            yield event.plain_result("抽卡成功，但记录日志时出错。")
+            yield event.plain_result(Messages.GACHA_LOG_FAILED.value)
             return
 
         # 构造返回消息
         rarity_stars = "★" * rarity
-        result_msg = f"🎉 抽卡成功！\n"
+        result_msg = f"{Messages.GACHA_SUCCESS.value}\n"
         result_msg += f"卡池: {pool['name']}\n"
         result_msg += f"获得物品: {item_name}\n"
         result_msg += f"稀有度: {rarity_stars} ({rarity}星)\n"
@@ -166,18 +167,18 @@ class GachaService:
 
         # 检查卡池是否存在
         if pool_id not in self.gacha_pools:
-            yield event.plain_result("无效的卡池ID！请使用 1-3 之间的数字。")
+            yield event.plain_result(Messages.GACHA_INVALID_POOL.value)
             return
 
         # 检查用户金币 (十连抽卡消耗900金币，相当于9折)
         user = self.gacha_dao.get_user_gold(user_id)
         if not user or user['gold'] < 900:
-            yield event.plain_result("金币不足！十连抽卡需要900金币。")
+            yield event.plain_result(Messages.GACHA_TEN_NOT_ENOUGH_GOLD.value)
             return
 
         # 扣除金币
         if not self.gacha_dao.deduct_user_gold(user_id, 900):
-            yield event.plain_result("扣除金币失败，请稍后再试。")
+            yield event.plain_result(Messages.GACHA_DEDUCT_GOLD_FAILED.value)
             return
 
         # 执行十连抽卡
@@ -216,7 +217,7 @@ class GachaService:
             })
 
         # 构造返回消息
-        result_msg = f"🎊 十连抽卡结果 (卡池: {pool['name']})\n"
+        result_msg = f"{Messages.GACHA_TEN_SUCCESS.value} (卡池: {pool['name']})\n"
         result_msg += "=" * 30 + "\n"
 
         # 按稀有度分组显示
@@ -236,7 +237,7 @@ class GachaService:
     async def view_gacha_pool_command(self, event: AstrMessageEvent, pool_id: int):
         """查看卡池命令"""
         if pool_id not in self.gacha_pools:
-            yield event.plain_result("无效的卡池ID！请使用 1-3 之间的数字。")
+            yield event.plain_result(Messages.GACHA_INVALID_POOL.value)
             return
 
         pool = self.gacha_pools[pool_id]
@@ -288,7 +289,7 @@ class GachaService:
 
         # 如果没有抽卡记录
         if not logs:
-            yield event.plain_result("您还没有抽卡记录。")
+            yield event.plain_result(Messages.GACHA_NO_RECORDS.value)
             return
 
         # 获取其他类型的物品名称
@@ -302,7 +303,7 @@ class GachaService:
         all_logs = all_logs[:20]  # 只取最新的20条记录
 
         if not all_logs:
-            yield event.plain_result("您还没有抽卡记录。")
+            yield event.plain_result(Messages.GACHA_NO_RECORDS.value)
             return
 
         # 构造返回消息

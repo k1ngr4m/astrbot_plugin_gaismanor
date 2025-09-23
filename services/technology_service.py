@@ -8,6 +8,7 @@ from astrbot.core.message.message_event_result import MessageEventResult
 from ..models.user import User
 from ..models.tech import Technology, UserTechnology
 from ..models.database import DatabaseManager
+from ..enums.messages import Messages
 
 
 class TechnologyService:
@@ -270,7 +271,7 @@ class TechnologyService:
         user = self._get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取所有科技和用户已解锁科技
@@ -311,13 +312,13 @@ class TechnologyService:
         user = self._get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 查找科技
         technology = self.get_technology_by_name(tech_name)
         if not technology:
-            yield event.plain_result("未找到指定的科技")
+            yield event.plain_result(Messages.TECHNOLOGY_NOT_FOUND.value)
             return
 
         # 检查是否可以解锁
@@ -328,6 +329,6 @@ class TechnologyService:
 
         # 解锁科技
         if self.unlock_technology(user_id, technology.id):
-            yield event.plain_result(f"🎉 成功解锁科技: {technology.display_name}！\n{technology.description}")
+            yield event.plain_result(f"{Messages.TECHNOLOGY_UNLOCK_SUCCESS.value}: {technology.display_name}！\n{technology.description}")
         else:
-            yield event.plain_result("解锁科技失败，请稍后再试")
+            yield event.plain_result(Messages.TECHNOLOGY_UNLOCK_FAILED.value)

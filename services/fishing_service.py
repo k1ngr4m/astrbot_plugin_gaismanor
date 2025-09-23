@@ -7,6 +7,7 @@ from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitT
 from ..models.database import DatabaseManager
 from .achievement_service import AchievementService
 from ..dao.fishing_dao import FishingDAO
+from ..enums.messages import Messages
 from ..utils.fishing_utils import (calculate_exp_gain, select_fish_by_rarity,
                                  calculate_fish_value_and_weight, calculate_catch_rate,
                                  calculate_rod_durability_cost)
@@ -282,7 +283,7 @@ class FishingService:
 
         # 如果用户不存在，提示需要先注册
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 执行钓鱼操作

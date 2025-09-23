@@ -4,6 +4,7 @@ from ..models.user import User
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.database import DatabaseManager
 from ..dao.equipment_dao import EquipmentDAO
+from ..enums.messages import Messages
 import time
 import logging
 
@@ -138,7 +139,7 @@ class EquipmentService:
         rods = self.get_user_rods(user_id)
 
         if not rods:
-            yield event.plain_result("您的鱼竿背包是空的，快去商店购买一些鱼竿吧！")
+            yield event.plain_result(Messages.INVENTORY_NO_RODS.value)
             return
 
         # 构建鱼竿信息
@@ -164,7 +165,7 @@ class EquipmentService:
         )
 
         if not rod_instance:
-            yield event.plain_result("未找到指定的鱼竿")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_NOT_FOUND.value)
             return
 
         # 装备鱼竿
@@ -176,9 +177,9 @@ class EquipmentService:
                 (rod_instance['rod_template_id'],)
             )
             rod_name = rod_template['name'] if rod_template else "未知鱼竿"
-            yield event.plain_result(f"成功装备鱼竿: {rod_name}")
+            yield event.plain_result(f"{Messages.EQUIPMENT_ROD_EQUIP_SUCCESS.value}: {rod_name}")
         else:
-            yield event.plain_result("装备鱼竿失败")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_EQUIP_FAILED.value)
 
     async def unequip_rod_command(self, event: AstrMessageEvent):
         """卸下鱼竿命令"""
@@ -188,16 +189,16 @@ class EquipmentService:
         equipped_rod = self.get_equipped_rod(user_id)
 
         if not equipped_rod:
-            yield event.plain_result("您当前没有装备任何鱼竿")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_NOT_EQUIPPED.value)
             return
 
         # 卸下鱼竿
         success = self.unequip_rod(user_id)
 
         if success:
-            yield event.plain_result(f"成功卸下鱼竿: {equipped_rod.name}")
+            yield event.plain_result(f"{Messages.EQUIPMENT_ROD_UNEQUIP_SUCCESS.value}: {equipped_rod.name}")
         else:
-            yield event.plain_result("卸下鱼竿失败，可能鱼竿已被卸下或不存在")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_UNEQUIP_FAILED.value)
 
     async def repair_rod_command(self, event: AstrMessageEvent, rod_id: int = None):
         """维修鱼竿命令"""
@@ -205,7 +206,7 @@ class EquipmentService:
 
         # 如果没有指定鱼竿ID，则显示需要指定鱼竿ID的提示
         if rod_id is None:
-            yield event.plain_result("请指定要维修的鱼竿ID。使用 /鱼竿 命令查看您的鱼竿列表和对应的ID。")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_REPAIR_NO_ID.value)
             return
 
         # 获取用户信息
@@ -214,7 +215,7 @@ class EquipmentService:
         user = user_service.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取指定的鱼竿
@@ -227,17 +228,17 @@ class EquipmentService:
         )
 
         if not rod_instance:
-            yield event.plain_result("未找到指定的鱼竿，请检查鱼竿ID是否正确")
+            yield event.plain_result(Messages.EQUIPMENT_ROD_REPAIR_NOT_FOUND.value)
             return
 
         # 检查鱼竿是否已损坏（耐久度为0）
         if rod_instance['durability'] > 0:
-            yield event.plain_result(f"鱼竿 [{rod_instance['rod_name']}] 未损坏，无需维修")
+            yield event.plain_result(f"{Messages.EQUIPMENT_ROD_REPAIR_NOT_DAMAGED.value}，无需维修")
             return
 
         # 检查鱼竿是否有最大耐久度限制
         if rod_instance['max_durability'] is None:
-            yield event.plain_result(f"鱼竿 [{rod_instance['rod_name']}] 无需维修")
+            yield event.plain_result(f"{Messages.EQUIPMENT_ROD_REPAIR_NOT_NEEDED.value}，无需维修")
             return
 
         # 计算维修费用（根据鱼竿稀有度计算）
@@ -245,7 +246,7 @@ class EquipmentService:
 
         # 检查金币是否足够
         if user.gold < repair_cost:
-            yield event.plain_result(f"金币不足！维修需要 {repair_cost} 金币，您当前只有 {user.gold} 金币。")
+            yield event.plain_result(f"{Messages.EQUIPMENT_ROD_REPAIR_NOT_ENOUGH_GOLD.value}，您当前只有 {user.gold} 金币。")
             return
 
         # 扣除金币并恢复耐久度
@@ -258,7 +259,7 @@ class EquipmentService:
             (rod_instance['max_durability'], rod_id)
         )
 
-        yield event.plain_result(f"鱼竿 [{rod_instance['rod_name']}] 维修成功！\n消耗金币: {repair_cost}\n当前耐久度: {rod_instance['max_durability']}")
+        yield event.plain_result(f"{Messages.EQUIPMENT_ROD_REPAIR_SUCCESS.value}\n消耗金币: {repair_cost}\n当前耐久度: {rod_instance['max_durability']}")
 
     def give_rod_to_user(self, user_id: str, rod_template_id: int) -> bool:
         """给用户发放指定模板的鱼竿"""

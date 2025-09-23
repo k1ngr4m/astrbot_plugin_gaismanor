@@ -5,6 +5,7 @@ from ..models.user import User
 from ..models.equipment import Rod, Accessory, Bait
 from ..models.fishing import FishTemplate
 from ..models.database import DatabaseManager
+from ..enums.messages import Messages
 import time
 
 class MarketService:
@@ -34,7 +35,7 @@ class MarketService:
         fish_listings = self.get_market_fish_listings()
 
         if not fish_listings:
-            yield event.plain_result("市场上暂无鱼类商品")
+            yield event.plain_result(Messages.MARKET_NO_FISH_ITEMS.value)
             return
 
         fish_info = "=== 市场鱼类商品 ===\n"
@@ -57,7 +58,7 @@ class MarketService:
         rod_listings = self.get_market_rod_listings()
 
         if not rod_listings:
-            yield event.plain_result("市场上暂无鱼竿商品")
+            yield event.plain_result(Messages.MARKET_NO_ROD_ITEMS.value)
             return
 
         rod_info = "=== 市场鱼竿商品 ===\n"
@@ -81,7 +82,7 @@ class MarketService:
         accessory_listings = self.get_market_accessory_listings()
 
         if not accessory_listings:
-            yield event.plain_result("市场上暂无饰品商品")
+            yield event.plain_result(Messages.MARKET_NO_ACCESSORY_ITEMS.value)
             return
 
         accessory_info = "=== 市场饰品商品 ===\n"
@@ -105,7 +106,7 @@ class MarketService:
         bait_listings = self.get_market_bait_listings()
 
         if not bait_listings:
-            yield event.plain_result("市场上暂无鱼饵商品")
+            yield event.plain_result(Messages.MARKET_NO_BAIT_ITEMS.value)
             return
 
         bait_info = "=== 市场鱼饵商品 ===\n"
@@ -129,7 +130,7 @@ class MarketService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查鱼类是否存在且属于用户
@@ -141,22 +142,22 @@ class MarketService:
         )
 
         if not fish_inventory:
-            yield event.plain_result("未找到该鱼类或不属于您")
+            yield event.plain_result(Messages.MARKET_LIST_FISH_NOT_OWNED.value)
             return
 
         # 检查价格是否合理 (至少为基础价值的50%)
         min_price = int(fish_inventory['base_value'] * 0.5)
         if price < min_price:
-            yield event.plain_result(f"价格过低，请至少设置为 {min_price} 金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_FISH_PRICE_TOO_LOW.value}，请至少设置为 {min_price} 金币")
             return
 
         # 上架鱼类到市场
         success = self.list_fish(user_id, fish_id, price)
 
         if success:
-            yield event.plain_result(f"成功上架鱼类: {fish_inventory['name']}，售价: {price}金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_FISH_SUCCESS.value}: {fish_inventory['name']}，售价: {price}金币")
         else:
-            yield event.plain_result("上架鱼类失败")
+            yield event.plain_result(Messages.MARKET_LIST_FISH_FAILED.value)
 
     async def list_rod_command(self, event: AstrMessageEvent, rod_id: int, price: int):
         """上架鱼竿命令"""
@@ -164,7 +165,7 @@ class MarketService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查鱼竿是否存在且属于用户
@@ -176,27 +177,27 @@ class MarketService:
         )
 
         if not rod_instance:
-            yield event.plain_result("未找到该鱼竿或不属于您")
+            yield event.plain_result(Messages.MARKET_LIST_ROD_NOT_OWNED.value)
             return
 
         # 检查是否是装备中的鱼竿
         if rod_instance['is_equipped']:
-            yield event.plain_result("装备中的鱼竿无法上架，请先卸下")
+            yield event.plain_result(Messages.MARKET_LIST_ROD_EQUIPPED.value)
             return
 
         # 检查价格是否合理 (至少为原价的50%)
         min_price = int((rod_instance['purchase_cost'] or 0) * 0.5)
         if price < min_price:
-            yield event.plain_result(f"价格过低，请至少设置为 {min_price} 金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_ROD_PRICE_TOO_LOW.value}，请至少设置为 {min_price} 金币")
             return
 
         # 上架鱼竿到市场
         success = self.list_rod(user_id, rod_id, price)
 
         if success:
-            yield event.plain_result(f"成功上架鱼竿: {rod_instance['name']}，售价: {price}金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_ROD_SUCCESS.value}: {rod_instance['name']}，售价: {price}金币")
         else:
-            yield event.plain_result("上架鱼竿失败")
+            yield event.plain_result(Messages.MARKET_LIST_ROD_FAILED.value)
 
     async def list_accessory_command(self, event: AstrMessageEvent, accessory_id: int, price: int):
         """上架饰品命令"""
@@ -204,7 +205,7 @@ class MarketService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查饰品是否存在且属于用户
@@ -216,26 +217,26 @@ class MarketService:
         )
 
         if not accessory_instance:
-            yield event.plain_result("未找到该饰品或不属于您")
+            yield event.plain_result(Messages.MARKET_LIST_ACCESSORY_NOT_OWNED.value)
             return
 
         # 检查是否是装备中的饰品
         if accessory_instance['is_equipped']:
-            yield event.plain_result("装备中的饰品无法上架，请先卸下")
+            yield event.plain_result(Messages.MARKET_LIST_ACCESSORY_EQUIPPED.value)
             return
 
         # 检查价格是否合理 (至少为100金币)
         if price < 100:
-            yield event.plain_result("价格过低，请至少设置为 100 金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_ACCESSORY_PRICE_TOO_LOW.value}，请至少设置为 100 金币")
             return
 
         # 上架饰品到市场
         success = self.list_accessory(user_id, accessory_id, price)
 
         if success:
-            yield event.plain_result(f"成功上架饰品: {accessory_instance['name']}，售价: {price}金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_ACCESSORY_SUCCESS.value}: {accessory_instance['name']}，售价: {price}金币")
         else:
-            yield event.plain_result("上架饰品失败")
+            yield event.plain_result(Messages.MARKET_LIST_ACCESSORY_FAILED.value)
 
     async def list_bait_command(self, event: AstrMessageEvent, bait_id: int, price: int):
         """上架鱼饵命令"""
@@ -243,7 +244,7 @@ class MarketService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查鱼饵是否存在且属于用户
@@ -255,22 +256,22 @@ class MarketService:
         )
 
         if not bait_inventory:
-            yield event.plain_result("未找到该鱼饵或数量不足")
+            yield event.plain_result(Messages.MARKET_LIST_BAIT_NOT_OWNED.value)
             return
 
         # 检查价格是否合理 (至少为基础价格的50%)
         min_price = int(bait_inventory['cost'] * 0.5)
         if price < min_price:
-            yield event.plain_result(f"价格过低，请至少设置为 {min_price} 金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_BAIT_PRICE_TOO_LOW.value}，请至少设置为 {min_price} 金币")
             return
 
         # 上架鱼饵到市场
         success = self.list_bait(user_id, bait_id, price)
 
         if success:
-            yield event.plain_result(f"成功上架鱼饵: {bait_inventory['name']}，售价: {price}金币")
+            yield event.plain_result(f"{Messages.MARKET_LIST_BAIT_SUCCESS.value}: {bait_inventory['name']}，售价: {price}金币")
         else:
-            yield event.plain_result("上架鱼饵失败")
+            yield event.plain_result(Messages.MARKET_LIST_BAIT_FAILED.value)
 
     async def buy_item_command(self, event: AstrMessageEvent, item_id: int):
         """购买商品命令"""
@@ -278,16 +279,16 @@ class MarketService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 购买商品
         success = self.buy_item(user_id, item_id)
 
         if success:
-            yield event.plain_result("购买成功！")
+            yield event.plain_result(Messages.MARKET_BUY_SUCCESS.value)
         else:
-            yield event.plain_result("购买失败，请检查金币是否足够或商品是否存在")
+            yield event.plain_result(Messages.MARKET_BUY_FAILED.value)
 
     def get_market_fish_listings(self) -> List[dict]:
         """获取市场上架的鱼类"""

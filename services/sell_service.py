@@ -6,6 +6,7 @@ from ..models.equipment import Rod, Bait
 from ..models.database import DatabaseManager
 from ..dao.sell_dao import SellDAO
 from ..dao.user_dao import UserDAO
+from ..enums.messages import Messages
 import time
 
 class SellService:
@@ -22,7 +23,7 @@ class SellService:
         fish_inventory = self.sell_dao.get_user_fish_inventory(user_id)
 
         if not fish_inventory:
-            yield event.plain_result("您的鱼塘是空的，没有鱼可以卖出！")
+            yield event.plain_result(Messages.SELL_NO_FISH.value)
             return
 
         # 计算总价值
@@ -34,7 +35,7 @@ class SellService:
         # 增加用户金币
         self.user_dao.add_gold(user_id, total_value)
 
-        yield event.plain_result(f"成功卖出所有鱼类！\n获得金币: {total_value}枚")
+        yield event.plain_result(f"{Messages.SELL_ALL_FISH_SUCCESS.value}\n获得金币: {total_value}枚")
 
     async def sell_by_rarity_command(self, event: AstrMessageEvent, rarity: int):
         """按稀有度卖出鱼类命令"""
@@ -42,14 +43,14 @@ class SellService:
 
         # 验证稀有度参数
         if rarity < 1 or rarity > 5:
-            yield event.plain_result("稀有度参数无效，请输入1-5之间的数字！")
+            yield event.plain_result(Messages.SELL_RARITY_INVALID.value)
             return
 
         # 获取指定稀有度的鱼类
         fish_inventory = self.sell_dao.get_user_fish_by_rarity(user_id, rarity)
 
         if not fish_inventory:
-            yield event.plain_result(f"您的鱼塘中没有 {rarity} 星鱼类！")
+            yield event.plain_result(f"{Messages.SELL_NO_FISH_OF_RARITY.value} 星鱼类！")
             return
 
         # 计算总价值
@@ -61,7 +62,7 @@ class SellService:
         # 增加用户金币
         self.user_dao.add_gold(user_id, total_value)
 
-        yield event.plain_result(f"成功卖出所有 {rarity} 星鱼类！\n共卖出 {len(fish_inventory)} 条鱼\n获得金币: {total_value}枚")
+        yield event.plain_result(f"{Messages.SELL_FISH_OF_RARITY_SUCCESS.value} 星鱼类！\n共卖出 {len(fish_inventory)} 条鱼\n获得金币: {total_value}枚")
 
     async def sell_rod_command(self, event: AstrMessageEvent, rod_id: int):
         """出售鱼竿命令"""
@@ -71,12 +72,12 @@ class SellService:
         rod = self.sell_dao.get_user_rod_by_id(user_id, rod_id)
 
         if not rod:
-            yield event.plain_result("找不到指定的鱼竿或该鱼竿不属于您！")
+            yield event.plain_result(Messages.SELL_ROD_NOT_OWNED.value)
             return
 
         # 检查鱼竿是否正在使用
         if rod['is_equipped']:
-            yield event.plain_result("不能出售正在使用的鱼竿，请先卸下该鱼竿！")
+            yield event.plain_result(Messages.SELL_ROD_EQUIPPED.value)
             return
 
         # 计算出售价格 (根据稀有度确定基础价格)
@@ -89,7 +90,7 @@ class SellService:
         # 增加用户金币
         self.user_dao.add_gold(user_id, sell_price)
 
-        yield event.plain_result(f"成功出售鱼竿 [{rod['name']}]！\n获得金币: {sell_price}枚")
+        yield event.plain_result(f"{Messages.SELL_ROD_SUCCESS.value} [{rod['name']}]！\n获得金币: {sell_price}枚")
 
     async def sell_bait_command(self, event: AstrMessageEvent, bait_id: int):
         """出售鱼饵命令"""
@@ -106,12 +107,12 @@ class SellService:
         )
 
         if not bait:
-            yield event.plain_result("找不到指定的鱼饵或该鱼饵不属于您！")
+            yield event.plain_result(Messages.SELL_BAIT_NOT_OWNED.value)
             return
 
         # 检查鱼饵数量
         if bait['quantity'] <= 0:
-            yield event.plain_result("该鱼饵数量为0，无法出售！")
+            yield event.plain_result(Messages.SELL_BAIT_ZERO_QUANTITY.value)
             return
 
         # 计算出售价格 (根据稀有度和数量确定价格)
@@ -124,7 +125,7 @@ class SellService:
         # 增加用户金币
         self.user_dao.add_gold(user_id, sell_price)
 
-        yield event.plain_result(f"成功出售鱼饵 [{bait['bait_name']}] x{bait['quantity']}！\n获得金币: {sell_price}枚")
+        yield event.plain_result(f"{Messages.SELL_BAIT_SUCCESS.value} [{bait['bait_name']}] x{bait['quantity']}！\n获得金币: {sell_price}枚")
 
     async def sell_all_rods_command(self, event: AstrMessageEvent):
         """出售所有鱼竿命令"""
@@ -141,7 +142,7 @@ class SellService:
         )
 
         if not rods:
-            yield event.plain_result("您没有可以出售的鱼竿（非五星且未装备的鱼竿）！")
+            yield event.plain_result(Messages.SELL_NO_RODS_TO_SELL.value)
             return
 
         # 计算总价值
@@ -164,4 +165,4 @@ class SellService:
 
         # 构造返回消息
         rod_list = "\n".join([f"  · {name}" for name in rod_names])
-        yield event.plain_result(f"成功出售以下鱼竿：\n{rod_list}\n\n获得金币: {total_value}枚")
+        yield event.plain_result(f"{Messages.SELL_RODS_SUCCESS.value}\n{rod_list}\n\n获得金币: {total_value}枚")

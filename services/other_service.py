@@ -7,6 +7,7 @@ from ..dao.other_dao import OtherDAO
 from .fishing_service import FishingService
 from .achievement_service import AchievementService
 from .technology_service import TechnologyService
+from ..enums.messages import Messages
 import time
 import threading
 from datetime import datetime
@@ -29,23 +30,26 @@ class OtherService:
         # 获取用户信息
         user = self.other_dao.get_user_by_id(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查用户是否已解锁自动钓鱼科技
         if not self.technology_service.is_auto_fishing_unlocked(user_id):
-            yield event.plain_result("您尚未解锁自动钓鱼功能！请先使用 /解锁科技 自动钓鱼 解锁自动钓鱼功能。")
+            yield event.plain_result(Messages.AUTO_FISHING_NOT_UNLOCKED.value)
             return
 
         # 切换自动钓鱼状态
         new_auto_fishing = not user.auto_fishing
 
         if not self.other_dao.update_user_auto_fishing(user_id, new_auto_fishing):
-            yield event.plain_result("设置自动钓鱼功能失败，请稍后再试。")
+            yield event.plain_result(Messages.AUTO_FISHING_TOGGLE_FAILED.value)
             return
 
         status = "开启" if new_auto_fishing else "关闭"
-        yield event.plain_result(f"自动钓鱼功能已{status}！")
+        if new_auto_fishing:
+            yield event.plain_result(Messages.AUTO_FISHING_ENABLED.value)
+        else:
+            yield event.plain_result(Messages.AUTO_FISHING_DISABLED.value)
 
     def _auto_fishing_loop(self):
         """自动钓鱼检查循环"""
@@ -100,7 +104,7 @@ class OtherService:
         comprehensive_leaderboard = self.other_dao.get_comprehensive_leaderboard(group_id, 10)
 
         if not comprehensive_leaderboard:
-            yield event.plain_result("暂无排行榜数据！")
+            yield event.plain_result(Messages.LEADERBOARD_NO_DATA.value)
             return
 
         # 转换为绘图函数需要的格式
@@ -124,9 +128,9 @@ class OtherService:
             if os.path.exists(output_path):
                 yield event.image_result(output_path)
             else:
-                yield event.plain_result("生成排行榜图片失败！")
+                yield event.plain_result(Messages.LEADERBOARD_GENERATION_FAILED.value)
         except Exception as e:
-            yield event.plain_result(f"生成排行榜图片时出错: {str(e)}")
+            yield event.plain_result(f"{Messages.LEADERBOARD_IMAGE_ERROR.value}: {str(e)}")
 
     async def fish_gallery_command(self, event: AstrMessageEvent):
         """鱼类图鉴命令"""
@@ -134,11 +138,11 @@ class OtherService:
         fish_templates = self.other_dao.get_all_fish_templates()
 
         if not fish_templates:
-            yield event.plain_result("暂无鱼类数据！")
+            yield event.plain_result(Messages.FISH_GALLERY_NO_DATA.value)
             return
 
         # 构造鱼类图鉴信息
-        gallery_info = "=== 鱼类图鉴 ===\n\n"
+        gallery_info = f"{Messages.FISH_GALLERY.value}\n\n"
 
         # 按稀有度分组显示
         current_rarity = None
@@ -161,18 +165,18 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_by_id(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户的钓鱼记录（最近20条）
         fishing_logs = self.other_dao.get_fishing_logs(user_id, 20)
 
         if not fishing_logs:
-            yield event.plain_result("暂无钓鱼记录！")
+            yield event.plain_result(Messages.FISHING_LOG_NO_DATA.value)
             return
 
         # 构造钓鱼记录信息
-        log_info = "=== 钓鱼记录 ===\n\n"
+        log_info = f"{Messages.FISHING_LOG.value}\n\n"
 
         for log in fishing_logs:
             # 格式化时间到秒
@@ -209,21 +213,21 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_basic_info(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户成就
         achievements = self.achievement_service.get_user_achievements(user_id)
 
         if not achievements:
-            yield event.plain_result("暂无成就数据！")
+            yield event.plain_result(Messages.ACHIEVEMENT_NO_DATA.value)
             return
 
         # 构造成就信息
         completed_count = sum(1 for a in achievements if a['completed'])
         total_count = len(achievements)
 
-        achievement_info = f"=== 成就系统 ===\n\n"
+        achievement_info = f"{Messages.ACHIEVEMENT_SYSTEM.value}\n\n"
         achievement_info += f"成就完成度: {completed_count}/{total_count}\n\n"
 
         # 按完成状态分组显示
@@ -258,18 +262,18 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_basic_info(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户称号
         titles = self.achievement_service.get_user_titles(user_id)
 
         if not titles:
-            yield event.plain_result("暂无称号数据！")
+            yield event.plain_result(Messages.TITLE_NO_DATA.value)
             return
 
         # 构造称号信息
-        title_info = "=== 称号系统 ===\n\n"
+        title_info = f"{Messages.TITLE_SYSTEM.value}\n\n"
 
         active_title = None
         inactive_titles = []
@@ -305,7 +309,7 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_by_id(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户装备的鱼竿
@@ -361,9 +365,9 @@ class OtherService:
             if os.path.exists(output_path):
                 yield event.image_result(output_path)
             else:
-                yield event.plain_result("生成状态图片失败！")
+                yield event.plain_result(Messages.STATE_IMAGE_GENERATION_FAILED.value)
         except Exception as e:
-            yield event.plain_result(f"生成状态图片时出错: {str(e)}")
+            yield event.plain_result(f"{Messages.STATE_IMAGE_ERROR.value}: {str(e)}")
 
     async def wipe_bomb_command(self, event: AstrMessageEvent, amount: str):
         """擦弹命令 - 投入金币获得随机倍数回报"""
@@ -375,7 +379,7 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_by_id(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 解析投入的金币数
@@ -388,16 +392,16 @@ class OtherService:
             try:
                 gold_to_bet = int(amount)
             except ValueError:
-                yield event.plain_result("请输入有效的金币数量或 '梭哈'/'梭一半'/'allin'/'halfin'")
+                yield event.plain_result(Messages.WIPE_BOMB_INVALID_AMOUNT.value)
                 return
 
         # 检查金币是否足够
         if gold_to_bet <= 0:
-            yield event.plain_result("投入的金币数必须大于0！")
+            yield event.plain_result(Messages.WIPE_BOMB_INVALID_BET.value)
             return
 
         if user.gold < gold_to_bet:
-            yield event.plain_result("您的金币不足！")
+            yield event.plain_result(Messages.WIPE_BOMB_NOT_ENOUGH_GOLD.value)
             return
 
         # 检查今日擦弹次数限制（每天最多3次）
@@ -408,12 +412,12 @@ class OtherService:
 
         used_attempts = wipe_bomb_count['count'] if wipe_bomb_count else 0
         if used_attempts >= 3:
-            yield event.plain_result("您今天的擦弹次数已用完！每天最多可擦弹3次。")
+            yield event.plain_result(Messages.WIPE_BOMB_DAILY_LIMIT.value)
             return
 
         # 扣除用户金币
         if not self.other_dao.deduct_user_gold(user_id, gold_to_bet):
-            yield event.plain_result("扣除金币失败，请稍后再试。")
+            yield event.plain_result(Messages.WIPE_BOMB_DEDUCT_FAILED.value)
             return
 
         # 生成随机倍数 - 调整后的加权随机，数值合理
@@ -487,23 +491,23 @@ class OtherService:
 
         # 增加用户金币
         if not self.other_dao.add_user_gold(user_id, earned_gold):
-            yield event.plain_result("增加金币失败，请稍后再试。")
+            yield event.plain_result(Messages.WIPE_BOMB_ADD_GOLD_FAILED.value)
             return
 
         # 记录擦弹日志
         if not self.other_dao.add_wipe_bomb_log(user_id, gold_to_bet, multiplier, earned_gold, int(datetime.now().timestamp())):
-            yield event.plain_result("记录擦弹日志失败，请稍后再试。")
+            yield event.plain_result(Messages.WIPE_BOMB_LOG_FAILED.value)
             return
 
         # 构造返回消息
         if multiplier >= 5:
-            result_msg = f"🎉 恭喜！擦弹成功！\n"
+            result_msg = f"{Messages.WIPE_BOMB_SUCCESS_HIGH.value}\n"
         elif multiplier >= 2:
-            result_msg = f"😊 不错！擦弹成功！\n"
+            result_msg = f"{Messages.WIPE_BOMB_SUCCESS_MEDIUM.value}\n"
         elif multiplier >= 1:
-            result_msg = f"🙂 还行！擦弹成功！\n"
+            result_msg = f"{Messages.WIPE_BOMB_SUCCESS_LOW.value}\n"
         else:
-            result_msg = f"😢 很遗憾，擦弹失败了...\n"
+            result_msg = f"{Messages.WIPE_BOMB_FAILURE.value}\n"
 
         result_msg += f"投入金币: {gold_to_bet}\n"
         result_msg += f"获得倍数: {multiplier}x\n"
@@ -519,18 +523,18 @@ class OtherService:
         # 检查用户是否已注册
         user = self.other_dao.get_user_basic_info(user_id)
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户的擦弹记录（最近20条）
         wipe_bomb_logs = self.other_dao.get_wipe_bomb_logs(user_id, 20)
 
         if not wipe_bomb_logs:
-            yield event.plain_result("暂无擦弹记录！")
+            yield event.plain_result(Messages.WIPE_BOMB_LOG_NO_DATA.value)
             return
 
         # 构造擦弹记录信息
-        log_info = "=== 擦弹记录 ===\n\n"
+        log_info = f"{Messages.WIPE_BOMB_LOG.value}\n\n"
 
         for log in wipe_bomb_logs:
             # 格式化时间到秒

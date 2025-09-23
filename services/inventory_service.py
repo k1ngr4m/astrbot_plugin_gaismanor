@@ -6,6 +6,7 @@ from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitT
 from ..models.database import DatabaseManager
 from ..dao.inventory_dao import InventoryDAO
 from ..dao.user_dao import UserDAO
+from ..enums.messages import Messages
 import time
 
 class InventoryService:
@@ -20,14 +21,14 @@ class InventoryService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户鱼类库存
         fish_inventory = self.get_user_fish_inventory(user_id)
 
         if not fish_inventory:
-            yield event.plain_result("您的鱼塘还是空的呢，快去钓鱼吧！")
+            yield event.plain_result(Messages.INVENTORY_NO_FISH.value)
             return
 
         # 构建鱼类信息
@@ -58,7 +59,7 @@ class InventoryService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户鱼类库存
@@ -72,7 +73,7 @@ class InventoryService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 定义升级价格和容量增加量
@@ -86,7 +87,7 @@ class InventoryService:
 
         # 检查是否已满级
         if current_level >= max_level:
-            yield event.plain_result("您的鱼塘已达到最高等级，无法继续升级！")
+            yield event.plain_result(Messages.INVENTORY_POND_FULL.value)
             return
 
         # 获取升级费用和扩容数量
@@ -95,20 +96,20 @@ class InventoryService:
 
         # 检查金币是否足够
         if user.gold < upgrade_cost:
-            yield event.plain_result(f"金币不足！升级需要 {upgrade_cost} 金币，您当前只有 {user.gold} 金币。")
+            yield event.plain_result(f"{Messages.INVENTORY_POND_UPGRADE_COST.value}，您当前只有 {user.gold} 金币。")
             return
 
         # 扣除金币并升级鱼塘
         if not self.user_dao.deduct_gold(user_id, upgrade_cost):
-            yield event.plain_result("扣除金币失败，请稍后重试！")
+            yield event.plain_result(Messages.INVENTORY_POND_UPGRADE_DEDUCT_FAILED.value)
             return
 
         new_capacity = user.fish_pond_capacity + capacity_increase
         if not self.inventory_dao.upgrade_user_fish_pond(user_id, new_capacity):
-            yield event.plain_result("升级鱼塘失败，请稍后重试！")
+            yield event.plain_result(Messages.INVENTORY_POND_UPGRADE_FAILED.value)
             return
 
-        yield event.plain_result(f"鱼塘升级成功！\n消耗金币: {upgrade_cost}\n鱼塘容量增加: {capacity_increase}\n当前容量: {new_capacity}")
+        yield event.plain_result(f"{Messages.INVENTORY_POND_UPGRADE_SUCCESS.value}\n消耗金币: {upgrade_cost}\n鱼塘容量增加: {capacity_increase}\n当前容量: {new_capacity}")
 
     async def bait_command(self, event: AstrMessageEvent):
         """鱼饵命令"""
@@ -116,14 +117,14 @@ class InventoryService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户鱼饵库存
         bait_list = self.get_user_bait(user_id)
 
         if not bait_list:
-            yield event.plain_result("您的鱼饵背包是空的，快去商店购买一些鱼饵吧！")
+            yield event.plain_result(Messages.INVENTORY_NO_BAIT.value)
             return
 
         # 构建鱼饵信息
@@ -141,14 +142,14 @@ class InventoryService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户鱼竿库存
         rods = self.get_user_rods(user_id)
 
         if not rods:
-            yield event.plain_result("您的鱼竿背包是空的，快去商店购买一些鱼竿吧！")
+            yield event.plain_result(Messages.INVENTORY_NO_RODS.value)
             return
 
         # 构建鱼竿信息

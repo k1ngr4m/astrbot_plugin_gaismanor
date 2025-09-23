@@ -8,17 +8,10 @@ from .achievement_service import AchievementService
 from .technology_service import TechnologyService
 from ..services.equipment_service import EquipmentService
 from ..dao.user_dao import UserDAO
+from ..enums.messages import Messages
+from ..enums.constants import Constants
 from ..utils.exp_utils import (calculate_level, get_exp_for_level, precompute_level_rewards,
                               get_level_up_reward, check_and_unlock_technologies)
-
-# 常量定义
-MAX_LEVEL = 100
-BASE_EXP_PER_LEVEL = 100
-SIGN_IN_BASE_GOLD = 100
-SIGN_IN_BASE_EXP = 10
-SIGN_IN_STREAK_GOLD_INCREMENT = 20
-SIGN_IN_STREAK_EXP_INCREMENT = 2
-STARTER_ROD_TEMPLATE_ID = 1
 
 
 class UserService:
@@ -74,7 +67,7 @@ class UserService:
 
         # 检查用户是否已存在
         if self.get_user(user_id):
-            yield event.plain_result("您已经注册过了！")
+            yield event.plain_result(Messages.ALREADY_REGISTERED.value)
             return
 
         # 创建新用户
@@ -82,16 +75,16 @@ class UserService:
 
         # 为新用户发放新手木竿
         equipment_service = EquipmentService(self.db)
-        rod_given = equipment_service.give_rod_to_user(user_id, STARTER_ROD_TEMPLATE_ID)
+        rod_given = equipment_service.give_rod_to_user(user_id, Constants.STARTER_ROD_TEMPLATE_ID)
 
         # 构建欢迎消息
         if rod_given:
-            welcome_message = (f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n"
-                               f"您获得了初始金币: {user.gold}\n\n"
+            welcome_message = (f"{Messages.REGISTRATION_SUCCESS.value}\n\n"
+                               f"{Messages.BALANCE_INFO.value}: {user.gold}\n\n"
                                "您获得了一把新手木竿，可以开始钓鱼了！")
         else:
-            welcome_message = (f"注册成功！欢迎 {nickname} 来到大gai庄园！\n\n"
-                               f"您获得了初始金币: {user.gold}\n\n"
+            welcome_message = (f"{Messages.REGISTRATION_SUCCESS.value}\n\n"
+                               f"{Messages.BALANCE_INFO.value}: {user.gold}\n\n"
                                "（新手木竿发放失败，请联系管理员）")
 
         yield event.plain_result(welcome_message)
@@ -102,7 +95,7 @@ class UserService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取当前日期和昨天日期
@@ -114,7 +107,7 @@ class UserService:
         existing_record = self.user_dao.check_sign_in(user_id, today)
 
         if existing_record:
-            yield event.plain_result("您今天已经签到过了！")
+            yield event.plain_result(Messages.ALREADY_SIGNED_IN.value)
             return
 
         # 计算连续签到天数
@@ -152,7 +145,7 @@ class UserService:
             else:
                 level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！"
 
-            if new_level >= MAX_LEVEL:
+            if new_level >= Constants.MAX_LEVEL:
                 level_up_message += " 您已达到最高等级！"
 
             # 如果有新解锁的科技，添加到升级信息中
@@ -181,10 +174,10 @@ class UserService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
-        yield event.plain_result(f"您的金币余额: {user.gold}")
+        yield event.plain_result(f"{Messages.BALANCE_INFO.value}: {user.gold}")
 
     async def level_command(self, event: AstrMessageEvent):
         """查看等级和经验命令"""
@@ -192,11 +185,11 @@ class UserService:
         user = self.get_user(user_id)
 
         if not user:
-            yield event.plain_result("您还未注册，请先使用 /注册 命令注册账号")
+            yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 计算升级相关数据
-        if user.level >= MAX_LEVEL:
+        if user.level >= Constants.MAX_LEVEL:
             message = (f"📊 等级信息\n\n"
                        f"当前等级: {user.level}\n\n"
                        f"当前经验: {user.exp}\n\n"
