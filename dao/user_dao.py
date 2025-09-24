@@ -1,7 +1,7 @@
 """
 用户数据访问对象
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import time
 from ..models.user import User
 from ..models.database import DatabaseManager
@@ -23,6 +23,7 @@ class UserDAO:
             return User(
                 user_id=result['user_id'],
                 platform=result['platform'],
+                group_id=result['group_id'] or "",
                 nickname=result['nickname'],
                 gold=result['gold'],
                 exp=result['exp'],
@@ -40,17 +41,21 @@ class UserDAO:
             )
         return None
 
+    def get_user_basic_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """根据用户ID获取用户基本信息（用于检查用户是否已注册）"""
+        return self.db.fetch_one("SELECT * FROM users WHERE user_id = ?", (user_id,))
+
     def create_user(self, user: User) -> bool:
         """创建新用户"""
         try:
             self.db.execute_query(
-                """INSERT INTO users (user_id, platform, nickname, gold, exp, level, fishing_count,
+                """INSERT INTO users (user_id, platform, group_id, nickname, gold, exp, level, fishing_count,
                                       total_fish_weight, total_income, last_fishing_time,
                                       auto_fishing, total_fishing_count, total_coins_earned, fish_pond_capacity,
                                       created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    user.user_id, user.platform, user.nickname, user.gold, user.exp, user.level,
+                    user.user_id, user.platform, user.group_id, user.nickname, user.gold, user.exp, user.level,
                     user.fishing_count, user.total_fish_weight, user.total_income,
                     user.last_fishing_time, user.auto_fishing, user.total_fishing_count,
                     user.total_coins_earned, user.fish_pond_capacity, user.created_at, user.updated_at
@@ -68,6 +73,7 @@ class UserDAO:
             self.db.execute_query(
                 """UPDATE users
                    SET platform=?,
+                       group_id=?,
                        nickname=?,
                        gold=?,
                        exp=?,
@@ -83,7 +89,7 @@ class UserDAO:
                        updated_at=?
                    WHERE user_id = ?""",
                 (
-                    user.platform, user.nickname, user.gold, user.exp, user.level, user.fishing_count,
+                    user.platform, user.group_id, user.nickname, user.gold, user.exp, user.level, user.fishing_count,
                     user.total_fish_weight, user.total_income, user.last_fishing_time,
                     user.auto_fishing, user.total_fishing_count, user.total_coins_earned,
                     user.fish_pond_capacity, user.updated_at, user.user_id
@@ -141,7 +147,7 @@ class UserDAO:
             return False
 
     def deduct_gold(self, user_id: str, amount: int) -> bool:
-        """扣除用户金币"""
+        """原子操作扣除用户金币"""
         if amount <= 0:
             return False
 

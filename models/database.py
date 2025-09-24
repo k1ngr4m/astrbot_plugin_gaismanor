@@ -28,6 +28,7 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
                 platform TEXT NOT NULL DEFAULT 'unknown',
+                group_id TEXT,
                 nickname TEXT NOT NULL,
                 gold INTEGER DEFAULT 100,
                 exp INTEGER DEFAULT 0,

@@ -386,7 +386,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
 
     # 获取当前装备的鱼竿
     current_rod = None
-    rod_instance = inventory_repo.get_user_equipped_rod(user_id)
+    rod_instance = inventory_repo.get_equipped_rod(user_id)
     if rod_instance:
         rod_template = item_template_repo.get_rod_by_id(rod_instance.rod_id)
         if rod_template:
@@ -398,7 +398,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
 
     # 获取当前装备的饰品
     current_accessory = None
-    accessory_instance = inventory_repo.get_user_equipped_accessory(user_id)
+    accessory_instance = inventory_repo.get_equipped_accessory(user_id)
     if accessory_instance:
         accessory_template = item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
         if accessory_template:

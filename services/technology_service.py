@@ -5,6 +5,10 @@ from functools import lru_cache
 
 from astrbot.api.event import AstrMessageEvent
 from astrbot.core.message.message_event_result import MessageEventResult
+from ..dao.fishing_dao import FishingDAO
+from ..dao.other_dao import OtherDAO
+from ..dao.technology_dao import TechnologyDAO
+from ..dao.user_dao import UserDAO
 from ..models.user import User
 from ..models.tech import Technology, UserTechnology
 from ..models.database import DatabaseManager
@@ -14,6 +18,10 @@ from ..enums.messages import Messages
 class TechnologyService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.tech_dao = TechnologyDAO(self.db)
+        self.user_dao = UserDAO(self.db)
+        self.fish_dao = FishingDAO(self.db)
+        self.other_dao = OtherDAO(self.db)
         self._tech_cache: Dict[int, Technology] = {}  # 缓存科技数据，减少数据库查询
 
     def _load_tech_to_cache(self) -> None:
@@ -24,122 +32,31 @@ class TechnologyService:
 
     def get_all_technologies(self) -> List[Technology]:
         """获取所有科技"""
-        results = self.db.fetch_all("SELECT * FROM technologies ORDER BY id")
-        technologies = []
-        for row in results:
-            tech = Technology(
-                id=row['id'],
-                name=row['name'],
-                description=row['description'],
-                required_level=row['required_level'],
-                required_gold=row['required_gold'],
-                required_tech_ids=json.loads(row['required_tech_ids'] or "[]"),
-                effect_type=row['effect_type'],
-                effect_value=row['effect_value'],
-                display_name=row['display_name']
-            )
-            technologies.append(tech)
-        return technologies
+        return self.tech_dao.get_all_technologies()
 
     def get_user_technologies(self, user_id: str) -> List[UserTechnology]:
         """获取用户已解锁的科技"""
-        results = self.db.fetch_all(
-            "SELECT * FROM user_technologies WHERE user_id = ?",
-            (user_id,)
-        )
-        return [
-            UserTechnology(
-                id=row['id'],
-                user_id=row['user_id'],
-                tech_id=row['tech_id'],
-                unlocked_at=row['unlocked_at']
-            ) for row in results
-        ]
+        return self.tech_dao.get_user_technologies(user_id)
 
     def get_technology_by_id(self, tech_id: int) -> Optional[Technology]:
         """根据ID获取科技"""
-        # 先检查缓存
-        self._load_tech_to_cache()
-        if tech_id in self._tech_cache:
-            return self._tech_cache[tech_id]
-
-        # 缓存未命中则查询数据库
-        result = self.db.fetch_one(
-            "SELECT * FROM technologies WHERE id = ?",
-            (tech_id,)
-        )
-        if result:
-            tech = Technology(
-                id=result['id'],
-                name=result['name'],
-                description=result['description'],
-                required_level=result['required_level'],
-                required_gold=result['required_gold'],
-                required_tech_ids=json.loads(result['required_tech_ids'] or "[]"),
-                effect_type=result['effect_type'],
-                effect_value=result['effect_value'],
-                display_name=result['display_name']
-            )
-            self._tech_cache[tech_id] = tech  # 更新缓存
-            return tech
-        return None
+        return self.tech_dao.get_technology_by_id(tech_id)
 
     def get_technology_by_name(self, name: str) -> Optional[Technology]:
         """根据名称获取科技"""
-        # 先检查缓存
-        self._load_tech_to_cache()
-        for tech in self._tech_cache.values():
-            if tech.name == name:
-                return tech
-
-        # 缓存未命中则查询数据库
-        result = self.db.fetch_one(
-            "SELECT * FROM technologies WHERE name = ?",
-            (name,)
-        )
-        if result:
-            tech = Technology(
-                id=result['id'],
-                name=result['name'],
-                description=result['description'],
-                required_level=result['required_level'],
-                required_gold=result['required_gold'],
-                required_tech_ids=json.loads(result['required_tech_ids'] or "[]"),
-                effect_type=result['effect_type'],
-                effect_value=result['effect_value'],
-                display_name=result['display_name']
-            )
-            self._tech_cache[tech.id] = tech  # 更新缓存
-            return tech
-        return None
+        return self.tech_dao.get_technology_by_name(name)
 
     def is_technology_unlocked(self, user_id: str, tech_id: int) -> bool:
         """检查用户是否已解锁指定科技"""
-        result = self.db.fetch_one(
-            "SELECT id FROM user_technologies WHERE user_id = ? AND tech_id = ?",
-            (user_id, tech_id)
-        )
-        return result is not None
+        return self.tech_dao.is_technology_unlocked(user_id, tech_id)
 
     def get_user_unlocked_tech_ids(self, user_id: str) -> set[int]:
         """获取用户已解锁科技的ID集合"""
-        results = self.db.fetch_all(
-            "SELECT tech_id FROM user_technologies WHERE user_id = ?",
-            (user_id,)
-        )
-        return {row['tech_id'] for row in results}
+        return self.tech_dao.get_user_unlocked_tech_ids(user_id)
 
-    def is_auto_fishing_unlocked(self, user_id: str) -> bool:
-        """检查用户是否已解锁自动钓鱼功能"""
-        result = self.db.fetch_one(
-            """SELECT ut.id
-               FROM user_technologies ut
-                        JOIN technologies t ON ut.tech_id = t.id
-               WHERE ut.user_id = ?
-                 AND t.name = '自动钓鱼'""",
-            (user_id,)
-        )
-        return result is not None
+    def is_auto_fishing_unlocked(self, user_id: str, tech_name) -> bool:
+        """检查用户是否已解锁指定科技名称的功能"""
+        return self.tech_dao.is_tech_unlocked(user_id, tech_name)
 
     def can_unlock_technology(self, user: User, technology: Technology) -> Tuple[bool, str]:
         """检查用户是否可以解锁指定科技"""
@@ -189,7 +106,7 @@ class TechnologyService:
             return False
 
         # 获取用户信息
-        user = self._get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
         if not user:
             return False
 
@@ -205,18 +122,14 @@ class TechnologyService:
                 return False
 
             # 原子操作更新金币，避免并发问题
-            self.db.execute_query(
-                "UPDATE users SET gold = gold - ? WHERE user_id = ? AND gold >= ?",
-                (technology.required_gold, user_id, technology.required_gold)
-            )
+            res = self.user_dao.deduct_gold(user_id, technology.required_gold)
+            if not res:
+                return False
 
         # 记录解锁时间
-        self.db.execute_query(
-            """INSERT INTO user_technologies
-                   (user_id, tech_id, unlocked_at)
-               VALUES (?, ?, ?)""",
-            (user_id, tech_id, int(time.time()))
-        )
+        res = self.tech_dao.record_unlock_time(user_id, tech_id)
+        if not res:
+            return False
 
         # 应用科技效果
         self._apply_technology_effect(user_id, technology)
@@ -226,49 +139,18 @@ class TechnologyService:
     def _apply_technology_effect(self, user_id: str, technology: Technology) -> None:
         """应用科技效果"""
         if technology.effect_type == "auto_fishing":
-            self.db.execute_query(
-                "UPDATE users SET auto_fishing = TRUE WHERE user_id = ?",
-                (user_id,)
-            )
+            self.fish_dao.update_user_auto_fishing(user_id, True)
+
         elif technology.effect_type == "fish_pond_capacity":
-            self.db.execute_query(
-                "UPDATE users SET fish_pond_capacity = fish_pond_capacity + ? WHERE user_id = ?",
-                (technology.effect_value, user_id)
-            )
+            self.tech_dao.update_user_pond_capacity(user_id, technology.effect_value)
+
         # 其他科技效果可以在这里扩展
         # 如解锁鱼竿、鱼饵等类型的科技不需要特殊处理
-
-    def _get_user(self, user_id: str) -> Optional[User]:
-        """获取用户信息"""
-        result = self.db.fetch_one(
-            "SELECT * FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-        if result:
-            return User(
-                user_id=result['user_id'],
-                platform=result['platform'],
-                nickname=result['nickname'],
-                gold=result['gold'],
-                exp=result['exp'],
-                level=result['level'],
-                fishing_count=result['fishing_count'],
-                total_fish_weight=result['total_fish_weight'],
-                total_income=result['total_income'],
-                last_fishing_time=result['last_fishing_time'],
-                auto_fishing=result['auto_fishing'],
-                total_fishing_count=result['total_fishing_count'],
-                total_coins_earned=result['total_coins_earned'],
-                fish_pond_capacity=result['fish_pond_capacity'],
-                created_at=result['created_at'],
-                updated_at=result['updated_at']
-            )
-        return None
 
     async def tech_tree_command(self, event: AstrMessageEvent) -> AsyncGenerator[MessageEventResult, Any]:
         """科技树命令：展示所有科技及其解锁状态"""
         user_id = event.get_sender_id()
-        user = self._get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -309,7 +191,7 @@ class TechnologyService:
         MessageEventResult, Any]:
         """解锁科技命令：处理用户的科技解锁请求"""
         user_id = event.get_sender_id()
-        user = self._get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)

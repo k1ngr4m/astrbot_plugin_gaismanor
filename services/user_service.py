@@ -63,6 +63,7 @@ class UserService:
         """用户注册命令"""
         user_id = event.get_sender_id()
         platform = event.get_platform_name() or "unknown"
+        group_id = event.get_group_id() or ""
         nickname = event.get_sender_name() or f"用户{user_id[-4:]}"
 
         # 检查用户是否已存在
@@ -71,7 +72,7 @@ class UserService:
             return
 
         # 创建新用户
-        user = self.create_user(user_id, platform, nickname)
+        user = self.create_user(user_id, platform, group_id, nickname)
 
         # 为新用户发放新手木竿
         equipment_service = EquipmentService(self.db)
@@ -175,12 +176,13 @@ class UserService:
         """获取用户信息"""
         return self.user_dao.get_user_by_id(user_id)
 
-    def create_user(self, user_id: str, platform: str, nickname: str) -> User:
+    def create_user(self, user_id: str, platform: str, group_id: str, nickname: str) -> User:
         """创建新用户"""
         now = int(time.time())
         user = User(
             user_id=user_id,
             platform=platform,
+            group_id=group_id,
             nickname=nickname,
             created_at=now,
             updated_at=now

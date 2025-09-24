@@ -96,6 +96,26 @@ class TechnologyDAO(BaseDAO):
         )
         return result is not None
 
+    def get_user_unlocked_tech_ids(self, user_id: str) -> set[int]:
+        """获取用户已解锁科技的ID集合"""
+        results = self.db.fetch_all(
+            "SELECT tech_id FROM user_technologies WHERE user_id = ?",
+            (user_id,)
+        )
+        return {row['tech_id'] for row in results}
+
+    def is_tech_unlocked(self, user_id: str, tech_name) -> bool:
+        """检查用户是否已解锁指定科技名称的功能"""
+        result = self.db.fetch_one(
+            """SELECT ut.id
+               FROM user_technologies ut
+                        JOIN technologies t ON ut.tech_id = t.id
+               WHERE ut.user_id = ?
+                 AND t.name = ?""",
+            (user_id, tech_name)
+        )
+        return result is not None
+
     def unlock_technology(self, user_id: str, tech_id: int) -> bool:
         """解锁科技"""
         try:
@@ -108,4 +128,30 @@ class TechnologyDAO(BaseDAO):
             return True
         except Exception as e:
             print(f"解锁科技失败: {e}")
+            return False
+
+    def record_unlock_time(self, user_id: str, tech_id: int) -> bool:
+        """记录用户解锁科技的时间"""
+        try:
+            self.db.execute_query(
+                """INSERT INTO user_technologies
+                       (user_id, tech_id, unlocked_at)
+                   VALUES (?, ?, ?)""",
+                (user_id, tech_id, int(time.time()))
+            )
+            return True
+        except Exception as e:
+            print(f"记录用户解锁时间失败: {e}")
+            return False
+
+    def update_user_pond_capacity(self, user_id: str, effect_value: int) -> bool:
+        """更新用户钓鱼池容量"""
+        try:
+            self.db.execute_query(
+                "UPDATE users SET fish_pond_capacity = fish_pond_capacity + ? WHERE user_id = ?",
+                (effect_value, user_id)
+            )
+            return True
+        except Exception as e:
+            print(f"更新用户钓鱼池容量失败: {e}")
             return False

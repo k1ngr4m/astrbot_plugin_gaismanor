@@ -145,6 +145,17 @@ class FishingDAO(BaseDAO):
             )
         return None
 
+    def get_user_current_bait(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """获取用户当前使用的鱼饵"""
+        return self.db.fetch_one("""
+            SELECT bt.name, bt.rarity, ubi.quantity
+            FROM user_bait_inventory ubi
+            JOIN bait_templates bt ON ubi.bait_template_id = bt.id
+            WHERE ubi.user_id = ? AND ubi.id = (
+                SELECT current_bait_id FROM users WHERE user_id = ?
+            )
+        """, (user_id, user_id))
+
     def add_fish_to_inventory(self, user_id: str, fish_template_id: int,
                             weight: float, value: int) -> bool:
         """添加鱼到用户库存"""
@@ -172,8 +183,35 @@ class FishingDAO(BaseDAO):
             print(f"更新鱼竿耐久度失败: {e}")
             return False
 
+    def get_user_pond_info(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """获取用户鱼塘信息"""
+        return self.db.fetch_one("""
+            SELECT COUNT(*) as total_count, COALESCE(SUM(value), 0) as total_value
+            FROM user_fish_inventory
+            WHERE user_id = ?
+        """, (user_id,))
+
+
+    # ==================自动钓鱼相关==================
+    def update_user_auto_fishing(self, user_id: str, auto_fishing: bool) -> bool:
+        """更新用户自动钓鱼状态"""
+        try:
+            self.db.execute_query(
+                "UPDATE users SET auto_fishing = ? WHERE user_id = ?",
+                (auto_fishing, user_id)
+            )
+            return True
+        except Exception as e:
+            print(f"更新用户自动钓鱼状态失败: {e}")
+            return False
+
+    def get_auto_fishing_users(self) -> List[Dict[str, Any]]:
+        """获取所有开启自动钓鱼的用户"""
+        return self.db.fetch_all("SELECT * FROM users WHERE auto_fishing = TRUE")
+
+    # ==================钓鱼日志相关==================
     def add_fishing_log(self, user_id: str, fish_template_id: int,
-                       fish_weight: float, fish_value: int, success: bool) -> bool:
+                        fish_weight: float, fish_value: int, success: bool) -> bool:
         """添加钓鱼日志"""
         try:
             self.db.execute_query(
@@ -186,3 +224,23 @@ class FishingDAO(BaseDAO):
         except Exception as e:
             print(f"添加钓鱼日志失败: {e}")
             return False
+
+    def get_fishing_logs(self, user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """获取用户的钓鱼记录"""
+        return self.db.fetch_all("""
+                                 SELECT fl.*,
+                                        ft.name   as fish_name,
+                                        ft.rarity as fish_rarity,
+                                        uri.rod_template_id,
+                                        rt.name   as rod_name,
+                                        ubi.bait_template_id,
+                                        bt.name   as bait_name
+                                 FROM fishing_logs fl
+                                          LEFT JOIN fish_templates ft ON fl.fish_template_id = ft.id
+                                          LEFT JOIN user_rod_instances uri ON fl.rod_id = uri.id
+                                          LEFT JOIN rod_templates rt ON uri.rod_template_id = rt.id
+                                          LEFT JOIN user_bait_inventory ubi ON fl.bait_id = ubi.id
+                                          LEFT JOIN bait_templates bt ON ubi.bait_template_id = bt.id
+                                 WHERE fl.user_id = ?
+                                 ORDER BY fl.timestamp DESC LIMIT ?
+                                 """, (user_id, limit))

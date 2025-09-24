@@ -7,6 +7,7 @@ class User:
     """用户实体类"""
     user_id: str
     platform: str = "unknown"  # 平台 (qq, dingtalk, feishu等)
+    group_id: str = ""  # 群组ID
     nickname: str = ""
     gold: int = 20000  # 金币
     exp: int = 0     # 经验值

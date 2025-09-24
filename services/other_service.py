@@ -1,5 +1,7 @@
 from typing import List, Optional
 from astrbot.api.event import AstrMessageEvent
+from ..dao.fishing_dao import FishingDAO
+from ..dao.user_dao import UserDAO
 from ..models.user import User
 from ..models.fishing import FishTemplate
 from ..models.database import DatabaseManager
@@ -15,6 +17,8 @@ from datetime import datetime
 class OtherService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.user_dao = UserDAO(db_manager)
+        self.fishing_dao = FishingDAO(db_manager)
         self.other_dao = OtherDAO(db_manager)
         self.fishing_service = FishingService(db_manager)
         self.achievement_service = AchievementService(db_manager)
@@ -28,20 +32,20 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 获取用户信息
-        user = self.other_dao.get_user_by_id(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 检查用户是否已解锁自动钓鱼科技
-        if not self.technology_service.is_auto_fishing_unlocked(user_id):
+        if not self.technology_service.is_auto_fishing_unlocked(user_id, '自动钓鱼'):
             yield event.plain_result(Messages.AUTO_FISHING_NOT_UNLOCKED.value)
             return
 
         # 切换自动钓鱼状态
         new_auto_fishing = not user.auto_fishing
 
-        if not self.other_dao.update_user_auto_fishing(user_id, new_auto_fishing):
+        if not self.fishing_dao.update_user_auto_fishing(user_id, new_auto_fishing):
             yield event.plain_result(Messages.AUTO_FISHING_TOGGLE_FAILED.value)
             return
 
@@ -56,7 +60,7 @@ class OtherService:
         while True:
             try:
                 # 获取所有开启自动钓鱼的用户
-                auto_fishing_users = self.other_dao.get_auto_fishing_users()
+                auto_fishing_users = self.fishing_dao.get_auto_fishing_users()
 
                 for user_data in auto_fishing_users:
                     # 创建 User 对象
@@ -83,13 +87,13 @@ class OtherService:
                         result = self.fishing_service.fish(user)
 
                         # 更新用户数据
-                        self.other_dao.update_user_data(user)
+                        self.user_dao.update_user(user)
 
-                # 每30秒检查一次
-                time.sleep(30)
+                # 每15秒检查一次
+                time.sleep(10)
             except Exception as e:
                 print(f"自动钓鱼循环出错: {e}")
-                time.sleep(30)
+                time.sleep(10)
 
     async def leaderboard_command(self, event: AstrMessageEvent):
         """排行榜命令"""
@@ -135,7 +139,7 @@ class OtherService:
     async def fish_gallery_command(self, event: AstrMessageEvent):
         """鱼类图鉴命令"""
         # 获取所有鱼类模板
-        fish_templates = self.other_dao.get_all_fish_templates()
+        fish_templates = self.fishing_dao.get_fish_templates()
 
         if not fish_templates:
             yield event.plain_result(Messages.FISH_GALLERY_NO_DATA.value)
@@ -163,13 +167,13 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_by_id(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户的钓鱼记录（最近20条）
-        fishing_logs = self.other_dao.get_fishing_logs(user_id, 20)
+        fishing_logs = self.fishing_dao.get_fishing_logs(user_id, 20)
 
         if not fishing_logs:
             yield event.plain_result(Messages.FISHING_LOG_NO_DATA.value)
@@ -211,7 +215,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_basic_info(user_id)
+        user = self.user_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
@@ -260,7 +264,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_basic_info(user_id)
+        user = self.user_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
@@ -307,24 +311,24 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_by_id(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
         # 获取用户装备的鱼竿
-        equipped_rod = self.other_dao.get_user_equipped_rod(user_id)
+        equipped_rod = self.fishing_dao.get_equipped_rod(user_id)
         # 获取用户装备的饰品
-        equipped_accessory = self.other_dao.get_user_equipped_accessory(user_id)
+        equipped_accessory = self.fishing_dao.get_equipped_accessory(user_id)
         # 获取用户使用的鱼饵
-        current_bait = self.other_dao.get_user_current_bait(user_id)
+        current_bait = self.fishing_dao.get_user_current_bait(user_id)
         # 获取用户当前称号
         current_title = self.other_dao.get_user_current_title(user_id)
         # 获取用户钓鱼区域信息
         fishing_zone = None
 
         # 获取鱼塘信息
-        pond_info = self.other_dao.get_user_pond_info(user_id)
+        pond_info = self.fishing_dao.get_user_pond_info(user_id)
         # 获取擦弹剩余次数
         today = datetime.now().date()
         today_start = int(datetime.combine(today, datetime.min.time()).timestamp())
@@ -377,7 +381,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_by_id(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
@@ -416,7 +420,7 @@ class OtherService:
             return
 
         # 扣除用户金币
-        if not self.other_dao.deduct_user_gold(user_id, gold_to_bet):
+        if not self.user_dao.deduct_gold(user_id, gold_to_bet):
             yield event.plain_result(Messages.WIPE_BOMB_DEDUCT_FAILED.value)
             return
 
@@ -490,7 +494,7 @@ class OtherService:
         earned_gold = int(gold_to_bet * multiplier)
 
         # 增加用户金币
-        if not self.other_dao.add_user_gold(user_id, earned_gold):
+        if not self.user_dao.add_gold(user_id, earned_gold):
             yield event.plain_result(Messages.WIPE_BOMB_ADD_GOLD_FAILED.value)
             return
 
@@ -521,7 +525,7 @@ class OtherService:
         user_id = event.get_sender_id()
 
         # 检查用户是否已注册
-        user = self.other_dao.get_user_basic_info(user_id)
+        user = self.user_dao.get_user_basic_info(user_id)
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
