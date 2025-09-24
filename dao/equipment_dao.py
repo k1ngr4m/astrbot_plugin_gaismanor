@@ -61,17 +61,17 @@ class EquipmentDAO(BaseDAO):
         """装备鱼竿"""
         try:
             # 先取消装备当前装备的鱼竿
-            self.db.execute_query(
+            self.db.execute_update(
                 "UPDATE user_rod_instances SET is_equipped = FALSE WHERE user_id = ? AND is_equipped = TRUE",
                 (user_id,)
             )
 
             # 装备指定鱼竿
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE user_rod_instances SET is_equipped = TRUE WHERE user_id = ? AND id = ?",
                 (user_id, rod_id)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"装备鱼竿失败: {e}")
             return False
@@ -79,11 +79,11 @@ class EquipmentDAO(BaseDAO):
     def unequip_rod(self, user_id: str) -> bool:
         """卸下鱼竿"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE user_rod_instances SET is_equipped = FALSE WHERE user_id = ? AND is_equipped = TRUE",
                 (user_id,)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"卸下鱼竿失败: {e}")
             return False

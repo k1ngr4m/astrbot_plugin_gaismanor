@@ -51,13 +51,13 @@ class FishingService:
 
         if current_time - user.last_fishing_time < cooldown:
             remaining = cooldown - (current_time - user.last_fishing_time)
-            return False, f"还在冷却中，请等待 {remaining} 秒后再钓鱼"
+            return False, Messages.COOLDOWN_NOT_EXPIRED.value.format(remaining=remaining)
 
         # 检查金币 (默认10金币)
         if user.gold < 10:
-            return False, "金币不足，无法钓鱼"
+            return False, Messages.GOLD_NOT_ENOUGH.value
 
-        return True, "可以钓鱼"
+        return True, Messages.CAN_FISH.value
 
     def fish(self, user: User) -> FishingResult:
         """执行钓鱼操作"""
@@ -71,7 +71,7 @@ class FishingService:
 
         # 检查是否装备了鱼竿
         if not equipped_rod:
-            return FishingResult(success=False, message="请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /使用鱼竿 <ID> 来装备鱼竿。")
+            return FishingResult(success=False, message=Messages.NO_ROD_EQUIPPED.value)
 
         # 获取用户装备的饰品
         equipped_accessory = self._get_equipped_accessory(user.user_id)
@@ -103,7 +103,7 @@ class FishingService:
                 'last_fishing_time': user.last_fishing_time
             })
 
-            return FishingResult(success=False, message="这次没有钓到鱼，再试试看吧！")
+            return FishingResult(success=False, message=Messages.FISHING_FAILURE.value)
 
         # 钓鱼成功才扣除费用并更新冷却时间
         user.gold -= 10
@@ -116,18 +116,18 @@ class FishingService:
         # 检查鱼竿耐久度
         if equipped_rod_instance and equipped_rod_instance['durability'] is not None:
             if equipped_rod_instance['durability'] <= 0:
-                return FishingResult(success=False, message="鱼竿已损坏，请先维修后再使用！")
+                return FishingResult(success=False, message=Messages.EQUIPMENT_ROD_BROKEN.value)
 
         # 钓鱼成功，随机选择一种鱼
         # 限制鱼竿只能钓到稀有度小于等于鱼竿稀有度的鱼
         all_fish_templates = self.get_fish_templates()
         if not all_fish_templates:
-            return FishingResult(success=False, message="暂无鱼类数据")
+            return FishingResult(success=False, message=Messages.NO_FISH_TEMPLATES.value)
 
         # 根据鱼竿稀有度过滤可钓鱼类
         fish_templates = [fish for fish in all_fish_templates if fish.rarity <= equipped_rod.rarity]
         if not fish_templates:
-            return FishingResult(success=False, message="当前装备的鱼竿无法钓到任何鱼类，请使用更高级的鱼竿！")
+            return FishingResult(success=False, message=Messages.FISHING_FAILED_NO_FISH.value)
 
         # 根据稀有度权重选择鱼类
         caught_fish = select_fish_by_rarity(fish_templates)
@@ -147,7 +147,7 @@ class FishingService:
 
                 # 如果鱼竿损坏，添加提示信息
                 if new_durability <= 0:
-                    message = f"鱼竿在使用过程中损坏了！需要维修后才能继续使用。\n\n"
+                    message = f"{Messages.EQUIPMENT_ROD_BROKEN.value}\n\n"
                 else:
                     message = ""
             # 如果鱼竿没有耐久度限制（为None），则不消耗耐久度
@@ -188,18 +188,19 @@ class FishingService:
         level_up_message = ""
         if leveled_up:
             if level_up_reward > 0:
-                level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！获得金币奖励: {level_up_reward}"
+                level_up_message = (f"\n{Messages.LEVEL_UP_CONGRATS.value.format(new_level=new_level)} \n\n"
+                                    f"{Messages.LEVEL_UP_REWARD.value}: {level_up_reward}")
             else:
                 if new_level >= 100:
-                    level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！您已达到最高等级！"
+                    level_up_message = f"\n{Messages.LEVEL_UP_CONGRATS_MAX.value.format(new_level=new_level)}"
                 else:
-                    level_up_message = f"\n🎉 恭喜升级到 {new_level} 级！"
+                    level_up_message = f"\n{Messages.LEVEL_UP_CONGRATS.value.format(new_level=new_level)}"
 
             # 如果有新解锁的科技，添加到升级信息中
             if unlocked_techs:
                 tech_messages = []
                 for tech in unlocked_techs:
-                    tech_messages.append(f"🎉 成功解锁科技: {tech.display_name}！\n{tech.description}")
+                    tech_messages.append(f"{Messages.TECH_UNLOCK.value}: {tech.display_name}！\n{tech.description}")
                 tech_unlock_message = "\n\n".join(tech_messages)
                 level_up_message += f"\n\n{tech_unlock_message}"
 
@@ -227,7 +228,10 @@ class FishingService:
         if 'message' not in locals():
             message = ""
 
-        message += f"恭喜！你钓到了一条 {caught_fish.name} ({caught_fish.description})\n\n重量: {final_weight:.2f}kg\n\n价值: {final_value}金币\n\n获得经验: {exp_gained}点{level_up_message}"
+        message += (f"{Messages.FISHING_CAUGHT_FISH.value.format(caught_fish_name=caught_fish.name, caught_fish_desc=caught_fish.description)}\n\n"
+                    f"重量: {final_weight:.2f}kg\n\n"
+                    f"价值: {final_value}金币\n\n"
+                    f"获得经验: {exp_gained}点{level_up_message}")
 
         # 如果有新解锁的成就，添加到消息中
         if newly_unlocked:

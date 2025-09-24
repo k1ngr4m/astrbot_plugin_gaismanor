@@ -9,7 +9,7 @@ class Constants(IntEnum):
     BASE_EXP_PER_LEVEL = 100  # 每级基础经验需求系数
 
     # 签到相关常量
-    SIGN_IN_BASE_GOLD = 100  # 签到基础金币奖励
+    SIGN_IN_BASE_GOLD = 50  # 签到基础金币奖励
     SIGN_IN_BASE_EXP = 10  # 签到基础经验奖励
     SIGN_IN_STREAK_GOLD_INCREMENT = 20  # 连续签到金币奖励增量
     SIGN_IN_STREAK_EXP_INCREMENT = 2  # 连续签到经验奖励增量

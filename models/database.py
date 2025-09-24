@@ -628,12 +628,13 @@ class DatabaseManager:
         self._init_technology_data()
 
     def execute_query(self, query: str, params: tuple = ()):
-        """执行查询语句"""
+        """执行查询操作（SELECT）"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute(query, params)
-        conn.commit()
+        results = cursor.fetchall()
         conn.close()
+        return results
 
     def fetch_one(self, query: str, params: tuple = ()):
         """获取单条记录"""
@@ -652,3 +653,13 @@ class DatabaseManager:
         results = cursor.fetchall()
         conn.close()
         return results
+
+    def execute_update(self, query: str, params: tuple = ()):
+        """执行更新操作（INSERT/UPDATE/DELETE）"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rowcount = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return rowcount

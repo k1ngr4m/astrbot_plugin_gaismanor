@@ -148,11 +148,13 @@ class UserService:
 
         # 计算升级相关数据
         if user.level >= Constants.MAX_LEVEL:
-            message = (f"📊 等级信息\n\n"
-                       f"当前等级: {user.level}\n\n"
-                       f"当前经验: {user.exp}\n\n"
-                       "恭喜您已达到最高等级！\n\n"
-                       "您已解锁所有等级特权！")
+            message = (
+                f"{Messages.LEVEL_INFO_HEADER.value}"
+                f"{Messages.LEVEL_CURRENT.value}: {user.level}\n\n"
+                f"{Messages.LEVEL_EXP.value}: {user.exp}\n\n"
+                f"{Messages.LEVEL_MAX.value}\n\n"
+                f"{Messages.LEVEL_MAX_PRIVILEGE.value}\n\n"
+            )
         else:
             current_level_required_exp = self._get_exp_for_level(user.level - 1) if user.level > 1 else 0
             next_level_required_exp = self._get_exp_for_level(user.level)
@@ -163,12 +165,14 @@ class UserService:
             # 下一级奖励
             next_reward = self._get_level_up_reward(user.level + 1)
 
-            message = (f"📊 等级信息\n\n"
-                       f"当前等级: {user.level}\n\n"
-                       f"当前经验: {user.exp}\n\n"
-                       f"升级进度: {exp_in_current_level}/{exp_for_current_level}\n\n"
-                       f"距离升级还需: {exp_needed} 经验\n\n"
-                       f"下一等级奖励: {next_reward} 金币")
+            message = (
+                f"{Messages.LEVEL_INFO_HEADER.value}"
+                f"{Messages.LEVEL_CURRENT.value}: {user.level}\n\n"
+                f"{Messages.LEVEL_EXP.value}: {user.exp}\n\n"
+                f"{Messages.LEVEL_PROGRESS.value}: {exp_in_current_level}/{exp_for_current_level}\n\n"
+                f"{Messages.LEVEL_NEEDED.value}: {exp_needed} 经验\n\n"
+                f"{Messages.LEVEL_NEXT_REWARD.value}: {next_reward} 金币"
+            )
 
         yield event.plain_result(message)
 

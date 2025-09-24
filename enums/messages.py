@@ -27,20 +27,28 @@ class Messages(Enum):
     LEVEL_MAX_PRIVILEGE = "您已解锁所有等级特权！"
 
     # 升级/科技/成就
-    LEVEL_UP_CONGRATS = "🎉 恭喜升级到"
+    LEVEL_UP_CONGRATS = "🎉 恭喜升级到 {new_level} 级！"
+    LEVEL_UP_CONGRATS_MAX = "🎉 恭喜升级到 {new_level} 级！您已达到最高等级！"
     LEVEL_UP_REWARD = "获得金币奖励"
     LEVEL_UP_MAX = "您已达到最高等级！"
     TECH_UNLOCK = "🎉 成功解锁科技"
     ACHIEVEMENT_UNLOCK = "🎉 恭喜解锁新成就！"
 
     # 钓鱼消息
-    COOLDOWN_NOT_EXPIRED = "钓鱼冷却中，请稍后再试"
+    COOLDOWN_NOT_EXPIRED = "还在冷却中，请等待 {remaining} 秒后再钓鱼"
     FISHING_SUCCESS = "钓鱼成功！"
-    FISHING_FAILURE = "很遗憾，这次没有钓到鱼"
+    FISHING_FAILURE = "这次没有钓到鱼，再试试看吧！"
     AUTO_FISHING_ENABLED = "自动钓鱼功能已开启！"
     AUTO_FISHING_DISABLED = "自动钓鱼功能已关闭！"
     AUTO_FISHING_NOT_UNLOCKED = "您尚未解锁自动钓鱼功能！请先使用 /解锁科技 自动钓鱼 解锁自动钓鱼功能。"
     AUTO_FISHING_TOGGLE_FAILED = "设置自动钓鱼功能失败，请稍后再试。"
+    GOLD_NOT_ENOUGH = "金币不足，无法钓鱼"
+    CAN_FISH = "您可以钓鱼了！"
+    NO_ROD_EQUIPPED = "请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /使用鱼竿 <ID> 来装备鱼竿。"
+    FISHING_CAUGHT_FISH = "恭喜！你钓到了一条 {caught_fish_name} ({caught_fish_desc})"
+    # 鱼类消息
+    NO_FISH_TEMPLATES = "暂无鱼类数据"
+    FISHING_FAILED_NO_FISH = "当前装备的鱼竿无法钓到任何鱼类，请使用更高级的鱼竿！"
 
     # 装备消息
     EQUIPMENT_NOT_OWNED = "您没有该装备"
@@ -65,6 +73,7 @@ class Messages(Enum):
     EQUIPMENT_ROD_REPAIR_NOT_NEEDED = "鱼竿 [{rod_name}] 无需维修"
     EQUIPMENT_ROD_REPAIR_NOT_ENOUGH_GOLD = "金币不足！维修需要 {repair_cost} 金币，您当前只有 {user_gold} 金币。"
     EQUIPMENT_ROD_REPAIR_SUCCESS = "鱼竿 [{rod_name}] 维修成功！"
+    EQUIPMENT_ROD_BROKEN = "鱼竿已损坏，请先维修后再使用！"
 
     # 科技消息
     TECHNOLOGY_NOT_FOUND = "未找到指定的科技"
