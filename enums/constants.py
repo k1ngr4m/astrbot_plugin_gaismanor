@@ -17,3 +17,5 @@ class Constants(IntEnum):
     # 装备相关常量
     STARTER_ROD_TEMPLATE_ID = 1  # 新手鱼竿模板ID
     STARTING_GOLD = 200  # 初始金币数量
+
+    FISHING_COOLDOWN = 20  # 钓鱼冷却时间（秒）

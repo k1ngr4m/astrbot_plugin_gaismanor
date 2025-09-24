@@ -1,6 +1,8 @@
 from typing import Optional, List, Tuple
 import math
 
+from discord.ext.commands import cooldown
+
 from astrbot import logger
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate, FishingResult
@@ -11,8 +13,11 @@ from ..enums.messages import Messages
 from ..utils.fishing_utils import (calculate_exp_gain, select_fish_by_rarity,
                                  calculate_fish_value_and_weight, calculate_catch_rate,
                                  calculate_rod_durability_cost)
+from ..enums.constants import Constants
 import random
 import time
+
+FISHING_COOLDOWN = Constants.FISHING_COOLDOWN
 
 class FishingService:
     def __init__(self, db_manager: DatabaseManager):
@@ -40,7 +45,7 @@ class FishingService:
         """检查用户是否可以钓鱼"""
         # 检查冷却时间 (默认3分钟)
         current_time = int(time.time())
-        cooldown = 20  # 3分钟冷却时间
+        cooldown = FISHING_COOLDOWN  # 3分钟冷却时间
 
         # 获取用户装备的鱼竿，用于计算冷却时间减成
         equipped_rod = self._get_equipped_rod(user.user_id)
