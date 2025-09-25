@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from astrbot.api.event import AstrMessageEvent
+from ..enums.constants import Constants
 from ..models.user import User, FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate
 from ..models.database import DatabaseManager
@@ -8,6 +9,9 @@ from ..dao.inventory_dao import InventoryDAO
 from ..dao.user_dao import UserDAO
 from ..enums.messages import Messages
 import time
+
+POND_UPGRADE_CONFIG = Constants.POND_UPGRADE_CONFIG
+POND_BASE_CAPACITY = Constants.POND_BASE_CAPACITY
 
 class InventoryService:
     def __init__(self, db_manager: DatabaseManager):
@@ -93,15 +97,8 @@ class InventoryService:
             return
 
         # 定义升级配置
-        upgrade_config = [
-            (500, 50),  # 等级0->1: 费用500, 扩容50
-            (1000, 100),  # 等级1->2: 费用1000, 扩容100
-            (2000, 150),
-            (5000, 200),
-            (10000, 250)
-        ]
-
-        base_capacity = 50
+        upgrade_config = POND_UPGRADE_CONFIG
+        base_capacity = POND_BASE_CAPACITY
 
         # 计算当前等级
         current_capacity = base_capacity

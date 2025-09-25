@@ -1,7 +1,7 @@
 from enum import IntEnum
 
 
-class Constants(IntEnum):
+class Constants:
     """项目常量定义"""
 
     # 等级相关常量
@@ -19,3 +19,12 @@ class Constants(IntEnum):
     STARTING_GOLD = 200  # 初始金币数量
 
     FISHING_COOLDOWN = 20  # 钓鱼冷却时间（秒）
+
+    POND_BASE_CAPACITY = 50 # 鱼塘初始容量
+    POND_UPGRADE_CONFIG = [
+        (500, 50),  # 等级0->1: 费用500, 扩容50
+        (1000, 100),  # 等级1->2: 费用1000, 扩容100
+        (2000, 150),
+        (5000, 200),
+        (10000, 250)
+    ]
