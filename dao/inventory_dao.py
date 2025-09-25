@@ -77,7 +77,7 @@ class InventoryDAO(BaseDAO):
     def upgrade_user_fish_pond(self, user_id: str, new_capacity: int) -> bool:
         """升级用户鱼塘容量"""
         try:
-            self.db.execute_query(
+            self.db.execute_update(
                 "UPDATE users SET fish_pond_capacity = ? WHERE user_id = ?",
                 (new_capacity, user_id)
             )
@@ -89,11 +89,11 @@ class InventoryDAO(BaseDAO):
     def deduct_user_gold(self, user_id: str, amount: int) -> bool:
         """扣除用户金币"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE users SET gold = gold - ? WHERE user_id = ? AND gold >= ?",
                 (amount, user_id, amount)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"扣除用户金币失败: {e}")
             return False

@@ -62,15 +62,15 @@ class TechnologyService:
         """检查用户是否可以解锁指定科技"""
         # 检查是否已解锁
         if self.is_technology_unlocked(user.user_id, technology.id):
-            return False, "您已经解锁了此科技"
+            return False, Messages.TECHNOLOGY_ALREADY_UNLOCKED.value
 
         # 检查等级要求
         if user.level < technology.required_level:
-            return False, f"需要达到{technology.required_level}级才能解锁此科技"
+            return False, Messages.TECHNOLOGY_UNLOCK_FAILED_REQUIRED_LEVEL.value.format(required_level=technology.required_level)
 
         # 检查金币要求
         if user.gold < technology.required_gold:
-            return False, f"金币不足，需要{technology.required_gold}金币"
+            return False, Messages.TECHNOLOGY_UNLOCK_FAILED_GOLD_NOT_ENOUGH.value.format(required_gold=technology.required_gold)
 
         # 检查前置科技要求
         user_tech_ids = self.get_user_unlocked_tech_ids(user.user_id)
@@ -83,58 +83,58 @@ class TechnologyService:
                     missing_techs.append(req_tech.display_name)
 
         if missing_techs:
-            return False, f"需要先解锁以下科技: {', '.join(missing_techs)}"
+            return False, f"{Messages.TECHNOLOGY_UNLOCK_FAILED_REQUIRED_TECH.value}: {', '.join(missing_techs)}"
 
-        return True, "可以解锁"
+        return True, Messages.TECHNOLOGY_ALREADY_UNLOCKED.value
 
-    def unlock_technology(self, user_id: str, tech_id: int, skip_checks: bool = False) -> bool:
+    def unlock_technology(self, user_id: str, tech_id: int, skip_checks: bool = False) -> Tuple[bool, str]:
         """
         解锁科技
 
         :param user_id: 用户ID
         :param tech_id: 科技ID
         :param skip_checks: 是否跳过解锁条件检查（用于自动解锁场景）
-        :return: 是否解锁成功
+        :return: 是否解锁成功, 解锁失败的原因
         """
         # 检查是否已解锁
         if self.is_technology_unlocked(user_id, tech_id):
-            return False
+            return False, Messages.TECHNOLOGY_ALREADY_UNLOCKED.value
 
         # 获取科技信息
         technology = self.get_technology_by_id(tech_id)
         if not technology:
-            return False
+            return False, Messages.TECHNOLOGY_NOT_FOUND.value
 
         # 获取用户信息
         user = self.user_dao.get_user_by_id(user_id)
         if not user:
-            return False
+            return False, Messages.NOT_REGISTERED.value
 
         # 检查解锁条件（除非明确跳过）
         if not skip_checks:
             can_unlock, _ = self.can_unlock_technology(user, technology)
             if not can_unlock:
-                return False
+                return False, _
 
         # 扣除金币（如果有要求且不是自动解锁）
         if technology.required_gold > 0 and not skip_checks:
             if user.gold < technology.required_gold:
-                return False
+                return False, Messages.TECHNOLOGY_UNLOCK_FAILED_GOLD_NOT_ENOUGH.value.format(required_gold=technology.required_gold)
 
             # 原子操作更新金币，避免并发问题
             res = self.user_dao.deduct_gold(user_id, technology.required_gold)
             if not res:
-                return False
+                return False,Messages.GOLD_UPDATE_FAILED.value
 
         # 记录解锁时间
         res = self.tech_dao.record_unlock_time(user_id, tech_id)
         if not res:
-            return False
+            return False, Messages.SQL_FAILED.value
 
         # 应用科技效果
         self._apply_technology_effect(user_id, technology)
 
-        return True
+        return True, Messages.TECHNOLOGY_CAN_UNLOCK.value
 
     def _apply_technology_effect(self, user_id: str, technology: Technology) -> None:
         """应用科技效果"""
@@ -209,8 +209,9 @@ class TechnologyService:
             yield event.plain_result(message)
             return
 
+        success, _msg = self.unlock_technology(user_id, technology.id)
         # 解锁科技
-        if self.unlock_technology(user_id, technology.id):
+        if success:
             yield event.plain_result(f"{Messages.TECHNOLOGY_UNLOCK_SUCCESS.value}: {technology.display_name}！\n{technology.description}")
         else:
-            yield event.plain_result(Messages.TECHNOLOGY_UNLOCK_FAILED.value)
+            yield event.plain_result(_msg)

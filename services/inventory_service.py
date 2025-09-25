@@ -31,10 +31,22 @@ class InventoryService:
             yield event.plain_result(Messages.INVENTORY_NO_FISH.value)
             return
 
+        # 统计每种鱼类的数量
+        fish_count = {}
+        for fish in fish_inventory:
+            fish_template_id = fish.fish_template_id
+            if fish_template_id in fish_count:
+                fish_count[fish_template_id] += 1
+            else:
+                fish_count[fish_template_id] = 1
+
         # 构建鱼类信息
         fish_info = f"=== {user.nickname} 的鱼塘 ===\n"
         total_weight = 0
         total_value = 0
+
+        # 用于跟踪已显示的鱼类模板ID，避免重复显示
+        displayed_fish = set()
 
         for i, fish in enumerate(fish_inventory, 1):
             fish_template = self.db.fetch_one(
@@ -42,8 +54,12 @@ class InventoryService:
                 (fish.fish_template_id,)
             )
             if fish_template:
-                rarity_stars = "★" * fish_template['rarity']
-                fish_info += f"{i}. {fish_template['name']} {rarity_stars} - {fish.weight:.2f}kg - {fish.value}金币\n"
+                # 只显示每种鱼类一次，并显示数量
+                if fish.fish_template_id not in displayed_fish:
+                    rarity_stars = "★" * fish_template['rarity']
+                    count = fish_count[fish.fish_template_id]
+                    fish_info += f"{i}. {fish_template['name']} {rarity_stars} - 数量: {count} - {fish.weight:.2f}kg - {fish.value}金币\n"
+                    displayed_fish.add(fish.fish_template_id)
                 total_weight += fish.weight
                 total_value += fish.value
 

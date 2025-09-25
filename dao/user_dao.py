@@ -3,6 +3,8 @@
 """
 from typing import Optional, List, Dict, Any
 import time
+
+from astrbot import logger
 from ..models.user import User
 from ..models.database import DatabaseManager
 
@@ -150,11 +152,11 @@ class UserDAO:
             return False
 
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE users SET gold = gold - ? WHERE user_id = ? AND gold >= ?",
                 (amount, user_id, amount)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"扣除用户金币失败: {e}")
             return False

@@ -60,7 +60,7 @@ class FishingService:
 
         # 检查金币 (默认10金币)
         if user.gold < 10:
-            return False, Messages.GOLD_NOT_ENOUGH.value
+            return False, Messages.FISHING_GOLD_NOT_ENOUGH.value
 
         return True, Messages.CAN_FISH.value
 

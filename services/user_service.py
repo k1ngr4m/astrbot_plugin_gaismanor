@@ -149,7 +149,7 @@ class UserService:
         # 计算升级相关数据
         if user.level >= Constants.MAX_LEVEL:
             message = (
-                f"{Messages.LEVEL_INFO_HEADER.value}"
+                f"{Messages.LEVEL_INFO_HEADER.value}\n\n"
                 f"{Messages.LEVEL_CURRENT.value}: {user.level}\n\n"
                 f"{Messages.LEVEL_EXP.value}: {user.exp}\n\n"
                 f"{Messages.LEVEL_MAX.value}\n\n"

@@ -120,11 +120,11 @@ class ShopDAO(BaseDAO):
     def deduct_user_gold(self, user_id: str, amount: int) -> bool:
         """扣除用户金币"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE users SET gold = gold - ? WHERE user_id = ? AND gold >= ?",
                 (amount, user_id, amount)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"扣除用户金币失败: {e}")
             return False

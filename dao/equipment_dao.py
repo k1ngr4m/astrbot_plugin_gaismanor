@@ -133,11 +133,11 @@ class EquipmentDAO(BaseDAO):
     def remove_rod_from_user(self, user_id: str, rod_id: int) -> bool:
         """从用户移除鱼竿"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "DELETE FROM user_rod_instances WHERE user_id = ? AND id = ?",
                 (user_id, rod_id)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"从用户移除鱼竿失败: {e}")
             return False
@@ -208,19 +208,19 @@ class EquipmentDAO(BaseDAO):
         """装备饰品"""
         try:
             # 先取消当前装备的饰品
-            self.db.execute_query(
+            self.db.execute_update(
                 "UPDATE user_accessory_instances SET is_equipped = FALSE WHERE user_id = ? AND is_equipped = TRUE",
                 (user_id,)
             )
 
             # 装备新的饰品
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "UPDATE user_accessory_instances SET is_equipped = TRUE WHERE user_id = ? AND id = ?",
                 (user_id, accessory_id)
             )
             # execute_query方法不返回结果，我们通过检查影响的行数来判断是否成功
             # 这里假设如果能执行到这一步，就认为是成功的
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"装备饰品失败: {e}")
             return False

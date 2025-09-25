@@ -8,6 +8,8 @@ class Messages(Enum):
     ALREADY_REGISTERED = "您已经注册过了！"
     REGISTRATION_SUCCESS = "注册成功！欢迎来到大Gai庄园！"
     BALANCE_INFO = "当前金币余额"
+    GOLD_UPDATE_FAILED = "金币更新失败，请稍后再试"
+    SQL_FAILED = "数据库操作失败，请稍后再试"
 
     # 签到
     ALREADY_SIGNED_IN = "您今天已经签到过了！"
@@ -42,10 +44,11 @@ class Messages(Enum):
     AUTO_FISHING_DISABLED = "自动钓鱼功能已关闭！"
     AUTO_FISHING_NOT_UNLOCKED = "您尚未解锁自动钓鱼功能！请先使用 /解锁科技 自动钓鱼 解锁自动钓鱼功能。"
     AUTO_FISHING_TOGGLE_FAILED = "设置自动钓鱼功能失败，请稍后再试。"
-    GOLD_NOT_ENOUGH = "金币不足，无法钓鱼"
+    FISHING_GOLD_NOT_ENOUGH = "金币不足，无法钓鱼"
     CAN_FISH = "您可以钓鱼了！"
     NO_ROD_EQUIPPED = "请先装备鱼竿再进行钓鱼！使用 /鱼竿 命令查看您的鱼竿，使用 /使用鱼竿 <ID> 来装备鱼竿。"
     FISHING_CAUGHT_FISH = "恭喜！你钓到了一条 {caught_fish_name} ({caught_fish_desc})"
+
     # 鱼类消息
     NO_FISH_TEMPLATES = "暂无鱼类数据"
     FISHING_FAILED_NO_FISH = "当前装备的鱼竿无法钓到任何鱼类，请使用更高级的鱼竿！"
@@ -80,6 +83,10 @@ class Messages(Enum):
     TECHNOLOGY_UNLOCK_SUCCESS = "🎉 成功解锁科技"
     TECHNOLOGY_UNLOCK_FAILED = "解锁科技失败，请稍后再试"
     TECHNOLOGY_ALREADY_UNLOCKED = "您已解锁该科技"
+    TECHNOLOGY_UNLOCK_FAILED_REQUIRED_LEVEL = "需要达到{required_level}级才能解锁此科技"
+    TECHNOLOGY_UNLOCK_FAILED_GOLD_NOT_ENOUGH = "金币不足，无法解锁此科技，需要{required_gold}金币才能解锁"
+    TECHNOLOGY_UNLOCK_FAILED_REQUIRED_TECH = "需要先解锁以下科技"
+    TECHNOLOGY_CAN_UNLOCK = "您可以解锁此科技"
 
     # 商店消息
     SHOP_NO_ROD_ITEMS = "暂无鱼竿商品"

@@ -36,11 +36,11 @@ class SellDAO(BaseDAO):
     def delete_user_fish(self, user_id: str, fish_id: int) -> bool:
         """删除用户鱼类"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "DELETE FROM user_fish_inventory WHERE user_id = ? AND id = ?",
                 (user_id, fish_id)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"删除用户鱼类失败: {e}")
             return False
@@ -48,11 +48,11 @@ class SellDAO(BaseDAO):
     def delete_all_user_fish(self, user_id: str) -> bool:
         """删除用户所有鱼类"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "DELETE FROM user_fish_inventory WHERE user_id = ?",
                 (user_id,)
             )
-            return True
+            return result and result > 0
         except Exception as e:
             print(f"删除用户所有鱼类失败: {e}")
             return False
@@ -101,11 +101,11 @@ class SellDAO(BaseDAO):
     def delete_user_rod(self, user_id: str, rod_id: int) -> bool:
         """删除用户鱼竿"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "DELETE FROM user_rod_instances WHERE user_id = ? AND id = ?",
                 (user_id, rod_id)
             )
-            return result and getattr(result, 'rowcount', 0) > 0
+            return result and result > 0
         except Exception as e:
             print(f"删除用户鱼竿失败: {e}")
             return False
@@ -113,7 +113,7 @@ class SellDAO(BaseDAO):
     def delete_all_user_rods(self, user_id: str) -> bool:
         """删除用户所有鱼竿"""
         try:
-            result = self.db.execute_query(
+            result = self.db.execute_update(
                 "DELETE FROM user_rod_instances WHERE user_id = ?",
                 (user_id,)
             )
