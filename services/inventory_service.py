@@ -92,23 +92,35 @@ class InventoryService:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
             return
 
-        # 定义升级价格和容量增加量
-        upgrade_costs = [500, 1000, 2000, 5000, 10000]  # 每级升级费用
-        capacity_increases = [50, 100, 150, 200, 250]   # 每级扩容数量
+        # 定义升级配置
+        upgrade_config = [
+            (500, 50),  # 等级0->1: 费用500, 扩容50
+            (1000, 100),  # 等级1->2: 费用1000, 扩容100
+            (2000, 150),
+            (5000, 200),
+            (10000, 250)
+        ]
 
-        # 计算当前等级（基于容量，基础容量50）
         base_capacity = 50
-        current_level = (user.fish_pond_capacity - base_capacity) // 50
-        max_level = len(upgrade_costs)
+
+        # 计算当前等级
+        current_capacity = base_capacity
+        current_level = 0
+
+        for level, (cost, increase) in enumerate(upgrade_config):
+            if user.fish_pond_capacity >= current_capacity + increase:
+                current_capacity += increase
+                current_level = level + 1
+            else:
+                break
 
         # 检查是否已满级
-        if current_level >= max_level:
+        if current_level >= len(upgrade_config):
             yield event.plain_result(Messages.INVENTORY_POND_FULL.value)
             return
 
-        # 获取升级费用和扩容数量
-        upgrade_cost = upgrade_costs[current_level]
-        capacity_increase = capacity_increases[current_level]
+        # 获取下一级升级信息
+        upgrade_cost, capacity_increase = upgrade_config[current_level]
 
         # 检查金币是否足够
         if user.gold < upgrade_cost:
@@ -125,7 +137,10 @@ class InventoryService:
             yield event.plain_result(Messages.INVENTORY_POND_UPGRADE_FAILED.value)
             return
 
-        yield event.plain_result(f"{Messages.INVENTORY_POND_UPGRADE_SUCCESS.value}\n消耗金币: {upgrade_cost}\n鱼塘容量增加: {capacity_increase}\n当前容量: {new_capacity}")
+        yield event.plain_result(f"{Messages.INVENTORY_POND_UPGRADE_SUCCESS.value}\n"
+                                 f"消耗金币: {upgrade_cost}\n"
+                                 f"鱼塘容量增加: {capacity_increase}\n"
+                                 f"当前容量: {new_capacity}")
 
     async def bait_command(self, event: AstrMessageEvent):
         """鱼饵命令"""

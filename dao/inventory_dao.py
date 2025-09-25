@@ -3,6 +3,8 @@
 """
 import time
 from typing import List, Optional, Dict, Any
+
+from astrbot import logger
 from ..models.user import FishInventory
 from ..models.fishing import FishTemplate, RodTemplate, AccessoryTemplate, BaitTemplate
 from ..models.database import DatabaseManager
@@ -81,6 +83,7 @@ class InventoryDAO(BaseDAO):
                 "UPDATE users SET fish_pond_capacity = ? WHERE user_id = ?",
                 (new_capacity, user_id)
             )
+            logger.info(f"{user_id}升级用户鱼塘容量到{new_capacity}")
             return True
         except Exception as e:
             print(f"升级用户鱼塘容量失败: {e}")
