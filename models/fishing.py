@@ -27,6 +27,11 @@ class RodTemplate:
     rare_mod: float = 0.0  # 稀有度加成
     durability: Optional[int] = None  # 耐久度
     icon_url: Optional[str] = None
+    level: Optional[int] = None
+    exp: Optional[int] = None
+    acquired_at: Optional[int] = None
+    durability_mod: Optional[int] = None
+    is_equipped: Optional[bool] = None
 
 @dataclass
 class AccessoryTemplate:
@@ -42,6 +47,8 @@ class AccessoryTemplate:
     coin_mod: float = 1.0  # 金币加成
     other_desc: Optional[str] = None  # 其他描述
     icon_url: Optional[str] = None
+    is_equipped: Optional[bool] = None
+    acquired_at: Optional[int] = None
 
 @dataclass
 class BaitTemplate:
@@ -60,6 +67,7 @@ class BaitTemplate:
     value_modifier: float = 1.0  # 价值加成
     quantity_modifier: float = 1.0  # 数量加成
     is_consumable: bool = True  # 是否消耗
+    quantity: int = 1
 
 @dataclass
 class FishingResult:

@@ -18,7 +18,7 @@ class InventoryService:
     async def fish_pond_command(self, event: AstrMessageEvent):
         """鱼塘命令"""
         user_id = event.get_sender_id()
-        user = self.get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -72,7 +72,7 @@ class InventoryService:
     async def fish_pond_capacity_command(self, event: AstrMessageEvent):
         """鱼塘容量命令"""
         user_id = event.get_sender_id()
-        user = self.get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -86,7 +86,7 @@ class InventoryService:
     async def upgrade_fish_pond_command(self, event: AstrMessageEvent):
         """升级鱼塘命令"""
         user_id = event.get_sender_id()
-        user = self.get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -145,7 +145,7 @@ class InventoryService:
     async def bait_command(self, event: AstrMessageEvent):
         """鱼饵命令"""
         user_id = event.get_sender_id()
-        user = self.get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -170,7 +170,7 @@ class InventoryService:
     async def rod_command(self, event: AstrMessageEvent):
         """鱼竿命令"""
         user_id = event.get_sender_id()
-        user = self.get_user(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
 
         if not user:
             yield event.plain_result(Messages.NOT_REGISTERED.value)
@@ -192,31 +192,6 @@ class InventoryService:
             rod_info += f"   品质加成: +{rod.quality_mod}  数量加成: +{rod.quantity_mod}\n\n"
 
         yield event.plain_result(rod_info)
-
-    def get_user(self, user_id: str) -> Optional[User]:
-        """获取用户信息"""
-        result = self.db.fetch_one(
-            "SELECT * FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-        if result:
-            return User(
-                user_id=result['user_id'],
-                platform=result['platform'],
-                nickname=result['nickname'],
-                gold=result['gold'],
-                exp=result['exp'],
-                level=result['level'],
-                fishing_count=result['fishing_count'],
-                total_fish_weight=result['total_fish_weight'],
-                total_income=result['total_income'],
-                last_fishing_time=result['last_fishing_time'],
-                auto_fishing=result['auto_fishing'],
-                fish_pond_capacity=result['fish_pond_capacity'],
-                created_at=result['created_at'],
-                updated_at=result['updated_at']
-            )
-        return None
 
     def get_user_fish_inventory(self, user_id: str) -> List[FishInventory]:
         """获取用户鱼类库存"""
