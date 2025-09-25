@@ -120,11 +120,9 @@ class UserDAO:
 
             # 构建SET子句
             set_clause = ", ".join([f"{field} = ?" for field in fields.keys()])
-            values = list(fields.values()) + [user_id]
+            values = list(fields.values()) + [int(time.time())] + [user_id]
             query = f"UPDATE users SET {set_clause}, updated_at = ? WHERE user_id = ?"
-            values.append(int(time.time()))
             values = tuple(values)
-
             self.db.execute_query(query, values)
             return True
         except Exception as e:

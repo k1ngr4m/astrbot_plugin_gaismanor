@@ -632,7 +632,7 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute(query, params)
-        results = cursor.fetchall()
+        results = conn.commit()
         conn.close()
         return results
 

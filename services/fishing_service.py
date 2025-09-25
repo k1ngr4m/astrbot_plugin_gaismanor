@@ -110,7 +110,7 @@ class FishingService:
 
             return FishingResult(success=False, message=Messages.FISHING_FAILURE.value)
 
-        # 钓鱼成功才扣除费用并更新冷却时间
+        # 钓鱼成功扣除费用并更新冷却时间
         user.gold -= 10
         user.fishing_count += 1
         user.last_fishing_time = int(time.time())
