@@ -338,12 +338,28 @@ class OtherService:
         wipe_bomb_remaining = 3 - (wipe_bomb_count['count'] if wipe_bomb_count else 0)
 
         # 构造用户状态数据
+        # 将装备对象转换为字典格式
+        current_rod_dict = None
+        if equipped_rod:
+            current_rod_dict = {
+                'name': equipped_rod.name,
+                'rarity': equipped_rod.rarity,
+                'refine_level': getattr(equipped_rod, 'refine_level', 1)
+            }
+
+        current_accessory_dict = None
+        if equipped_accessory:
+            current_accessory_dict = {
+                'name': equipped_accessory.name,
+                'rarity': equipped_accessory.rarity
+            }
+
         user_data = {
             'user_id': user_id,
             'nickname': user.nickname or "未知用户",
             'coins': user.gold,
-            'current_rod': equipped_rod,
-            'current_accessory': equipped_accessory,
+            'current_rod': current_rod_dict,
+            'current_accessory': current_accessory_dict,
             'current_bait': current_bait,
             'auto_fishing_enabled': user.auto_fishing,
             'steal_cooldown_remaining': 0,  # 简化处理

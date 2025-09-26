@@ -152,7 +152,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     height_offset = 5
     if current_title:
         if isinstance(current_title, dict):
-            title_text = f"{current_title.get('name', '未知称号')}"
+            title_text = f"{current_title['name'] if 'name' in current_title else '未知称号'}"
         else:
             title_text = f"{current_title}"
 
@@ -211,8 +211,8 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_primary)
         # 根据稀有度选择颜色
-        rarity = current_rod.get('rarity', 1)
-        refined_level = current_rod.get('refine_level', 1)
+        rarity = current_rod['rarity'] if 'rarity' in current_rod else 1
+        refined_level = current_rod['refine_level'] if 'refine_level' in current_rod else 1
         star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
         draw.text((left_col_x, equipment_row3_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
@@ -226,7 +226,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_accessory:
         acc_name = current_accessory['name'][:15] + "..." if len(current_accessory['name']) > 15 else current_accessory['name']
         draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_primary)
-        rarity = current_accessory.get('rarity', 1)
+        rarity = current_accessory['rarity'] if 'rarity' in current_accessory else 1
         star_color = rare_color if rarity > 4 else warning_color if rarity > 3 else text_secondary
         draw.text((left_col_x, equipment_row6_y), f"{'★' * min(rarity, 5)}", font=tiny_font, fill=star_color)
     else:
@@ -249,9 +249,10 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_bait:
         bait_name = current_bait['name'][:15] + "..." if len(current_bait['name']) > 15 else current_bait['name']
         draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_primary)
-        rarity = current_bait.get('rarity', 1)
+        rarity = current_bait['rarity'] if 'rarity' in current_bait else 1
         star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
-        bait_detail = f"{'★' * min(rarity, 5)} 剩余：{current_bait.get('quantity', 0)}"
+        quantity = current_bait['quantity'] if 'quantity' in current_bait else 0
+        bait_detail = f"{'★' * min(rarity, 5)} 剩余：{quantity}"
         draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=star_color)
     else:
         draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=text_muted)
@@ -331,11 +332,18 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     draw.text((status_col2_x, status_row2_y), cd_text, font=content_font, fill=cd_color)
 
     # 第三行：鱼塘信息
-    pond_info = user_data.get('pond_info', {})
-    if pond_info and pond_info.get('total_count', 0) > 0:
-        # 左列：鱼塘鱼数
-        pond_count_text = f"鱼塘数量: {pond_info['total_count']} 条， 价值: {pond_info['total_value']:,} 金币"
-        draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_primary)
+    pond_info = user_data.get('pond_info')
+    if pond_info:
+        total_count = pond_info['total_count'] if 'total_count' in pond_info else 0
+        total_value = pond_info['total_value'] if 'total_value' in pond_info else 0
+        if total_count > 0:
+            # 左列：鱼塘鱼数
+            pond_count_text = f"鱼塘数量: {total_count} 条， 价值: {total_value:,} 金币"
+            draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_primary)
+        else:
+            # 鱼塘为空时显示
+            pond_empty_text = "鱼塘里什么都没有..."
+            draw.text((status_col1_x, status_row3_y), pond_empty_text, font=content_font, fill=text_muted)
     else:
         # 鱼塘为空时显示
         pond_empty_text = "鱼塘里什么都没有..."
